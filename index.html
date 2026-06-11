@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Interactive Azure Landing Zone network designer — IP ranges, VNets, subnets, NSGs and route tables. 100% client-side.">
+<meta name="theme-color" content="#0a0a0a">
+<title>AzIP-Ranger · Azure Landing Zone Network Designer</title>
+<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;rect width='100' height='100' rx='20' fill='%230078d4'/&gt;&lt;circle cx='50' cy='32' r='12' fill='white'/&gt;&lt;circle cx='26' cy='70' r='10' fill='white' opacity='.85'/&gt;&lt;circle cx='74' cy='70' r='10' fill='white' opacity='.85'/&gt;&lt;path d='M50 44v10M50 54L26 60M50 54l24 6' stroke='white' stroke-width='4' fill='none'/&gt;&lt;/svg&gt;">
+<link rel="stylesheet" href="css/styles.css?v=2.6.1">
+</head>
+<body>
+<a class="skip-link" href="#results">Skip to results</a>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="28" height="28" aria-hidden="true"><rect width="100" height="100" rx="22" fill="var(--accent)"/><circle cx="50" cy="30" r="11" fill="#fff"/><circle cx="26" cy="71" r="9" fill="#fff" opacity=".85"/><circle cx="74" cy="71" r="9" fill="#fff" opacity=".85"/><path d="M50 41v10M50 51L26 62M50 51l24 11" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/></svg>
+      <div class="brand-text">
+        <h1>AzIP-Ranger <span>Azure Landing Zone Network Designer</span></h1>
+        <p>Hub &amp; spoke IP planning · Routes · NSGs — runs entirely in your browser</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="btn-load" class="btn ghost" type="button" title="Load a saved design (.json)">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 11V2M4.5 5.5 8 2l3.5 3.5M2 11v2.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 8 8.5)"/></svg>
+        Load
+      </button>
+      <button id="btn-save" class="btn ghost" type="button" title="Save design as JSON">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M2 11v2.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Save
+      </button>
+      <button id="btn-reset" class="btn ghost" type="button" title="Reset to the v5.0 reference defaults">Reset</button>
+      <button id="btn-theme" class="btn icon-btn" type="button" aria-label="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v1.8M8 13.2V15M1 8h1.8M13.2 8H15M3 3l1.3 1.3M11.7 11.7 13 13M13 3l-1.3 1.3M4.3 11.7 3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="icon-moon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<input type="file" id="file-load" accept=".json,application/json" hidden aria-hidden="true">
+
+<main class="layout">
+
+  <!-- ════════════════ CONFIG PANEL ════════════════ -->
+  <aside class="config" aria-label="Network configuration">
+
+    <!-- 1 · Azure address space -->
+    <section class="card" id="card-azure">
+      <header class="card-head">
+        <span class="card-step">1</span>
+        <h2>Azure Address Space</h2>
+      </header>
+      <div class="card-body">
+        <div class="field">
+          <label for="az-cidr">Azure supernet (CIDR)</label>
+          <input id="az-cidr" class="mono" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="10.0.0.0/12…" value="10.0.0.0/12">
+          <p class="hint" id="az-cidr-hint"></p>
+        </div>
+        <div class="field">
+          <label for="az-region">Azure region <small>(drives the naming convention)</small></label>
+          <input id="az-region" class="mono" type="text" list="region-list" autocomplete="off" spellcheck="false" placeholder="westeurope…" value="westeurope">
+          <datalist id="region-list"></datalist>
+          <p class="hint">CAF names everywhere: <code>vnet-&lt;spoke&gt;-&lt;env&gt;-&lt;region&gt;</code>, <code>snet-</code>, <code>nsg-</code>, <code>rt-</code>… Lists live in <code>config.js</code>.</p>
+        </div>
+        <div class="field">
+          <span class="label">Layout mode</span>
+          <div class="seg" role="radiogroup" aria-label="Layout mode">
+            <label class="seg-opt"><input type="radio" name="az-mode" value="reference" checked><span>v5.0 Reference</span></label>
+            <label class="seg-opt"><input type="radio" name="az-mode" value="auto"><span>Auto right-size</span></label>
+          </div>
+          <p class="hint" id="mode-hint">Reference = the documented /13-per-region template. Auto = packs only what you enable into the smallest aligned blocks.</p>
+        </div>
+        <label class="check" id="row-region2">
+          <input type="checkbox" id="az-region2" checked>
+          <span>Keep room for a 2nd Azure region later (<code id="region2-cidr">—</code>) <a class="ref" href="https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing" target="_blank" rel="noopener noreferrer" title="Sets aside an equal-sized, untouched block of IP space so a second Azure region can be added later with the exact same layout — no renumbering, no overlaps. Nothing is deployed; the space is simply kept free in the plan (CAF: plan per region, non-overlapping).">ⓘ</a></span>
+        </label>
+        <label class="check" id="row-headroom">
+          <input type="checkbox" id="az-headroom" checked>
+          <span>Reserve growth headroom in spoke pools (≈2×)</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 2 · On-premises networks -->
+    <section class="card" id="card-onprem">
+      <header class="card-head">
+        <span class="card-step">2</span>
+        <h2>On-Premises Networks</h2>
+        <button id="btn-add-onprem" class="btn small" type="button">+ Add</button>
+      </header>
+      <div class="card-body">
+        <p class="hint">Each prefix is validated for overlap and auto-filled into every <code>To-OnPremises</code> route and NSG source — no <code>&lt;on-prem-supernet&gt;</code> placeholders.</p>
+        <div id="onprem-list" class="stack"></div>
+        <p class="hint subtle" id="onprem-empty">No on-prem networks — design will be Azure-only (no hybrid routes).</p>
+      </div>
+    </section>
+
+    <!-- 3 · Hybrid connectivity -->
+    <section class="card" id="card-conn">
+      <header class="card-head">
+        <span class="card-step">3</span>
+        <h2>Hybrid Connectivity</h2>
+      </header>
+      <div class="card-body">
+        <p class="hint subtle" id="conn-gate-hint" hidden>Add an on-premises network first — gateways need a remote site to connect to.</p>
+        <label class="check"><input type="checkbox" id="conn-er" checked><span>ExpressRoute gateway <small>(ErGw2AZ+, FastPath off)</small></span></label>
+        <label class="check"><input type="checkbox" id="conn-vpn" checked><span>VPN gateway <small>(VpnGw2AZ+, backup path)</small></span></label>
+        <label class="check"><input type="checkbox" id="conn-rs"><span>Azure Route Server <small>(dynamic NVA route exchange)</small></span></label>
+      </div>
+    </section>
+
+    <!-- 4 · Security architecture -->
+    <section class="card" id="card-security">
+      <header class="card-head">
+        <span class="card-step">4</span>
+        <h2>Inspection &amp; Firewalls</h2>
+      </header>
+      <div class="card-body">
+        <div class="arch-grid" role="radiogroup" aria-label="Security architecture">
+          <label class="arch-opt"><input type="radio" name="sec-arch" value="dual" checked>
+            <span class="arch-title">Dual-tier NVA</span>
+            <span class="arch-desc">v5.0 reference — North-South + East-West tiers</span>
+          </label>
+          <label class="arch-opt"><input type="radio" name="sec-arch" value="single">
+            <span class="arch-title">Single-tier NVA</span>
+            <span class="arch-desc">One NVA tier inspects N-S and E-W</span>
+          </label>
+          <label class="arch-opt"><input type="radio" name="sec-arch" value="azfw">
+            <span class="arch-title">Azure Firewall only</span>
+            <span class="arch-desc">Native PaaS — Premium, zone-redundant</span>
+          </label>
+          <label class="arch-opt"><input type="radio" name="sec-arch" value="none">
+            <span class="arch-title">No central inspection</span>
+            <span class="arch-desc">System routing only — NSGs are the control</span>
+          </label>
+        </div>
+
+        <div id="nva-config" class="stack">
+          <div class="tier-row" id="tier-ns">
+            <div class="tier-head">
+              <span class="label" id="tier-ns-label">North-South tier</span>
+              <span class="pill ok" id="ns-badge">HA (ILB)</span>
+              <button id="ns-add-group" class="btn small" type="button">+ Group</button>
+            </div>
+            <div id="ns-groups" class="stack"></div>
+          </div>
+          <div class="tier-row" id="tier-ew">
+            <div class="tier-head">
+              <span class="label" id="tier-ew-label">East-West tier</span>
+              <span class="pill ok" id="ew-badge">HA (ILB)</span>
+              <button id="ew-add-group" class="btn small" type="button">+ Group</button>
+            </div>
+            <div id="ew-groups" class="stack"></div>
+          </div>
+          <p class="hint">Each tier holds an <b>ordered chain of NVA groups</b>: route tables send traffic to the <b>entry</b> group's VIP (.100); each group forwards to the next hop (.101, .102…) and SNATs to its internal NICs, so every chain segment stays flow-symmetric. <b>VMs:</b> 1 = single instance (NIC next hop — SPOF), 2–3 = active-active behind the group ILB, each NVA individually nameable. <b>VMSS:</b> autoscale min–max, dynamic instance IPs, the VIP is the anchor. Reorder with ↑↓. Full inventory + chain contract in the IP Plan tab.</p>
+
+          <div class="tier-row" id="azfw-add-block" hidden>
+            <label class="check"><input type="checkbox" id="azfw-add"><span><b>Add Azure Firewall</b> to the <span id="azfw-add-arch">dual</span>-tier design <small>(chained inspection — the NVA tier(s) stay)</small></span></label>
+            <div class="tier-head" id="azfw-tier-row" hidden>
+              <span class="label" id="azfw-tier-label">Chain it into</span>
+              <div class="seg compact" role="radiogroup" aria-labelledby="azfw-tier-label">
+                <label class="seg-opt"><input type="radio" name="azfw-tier" value="ns" checked><span>North-South</span></label>
+                <label class="seg-opt"><input type="radio" name="azfw-tier" value="ew"><span>East-West</span></label>
+              </div>
+              <span class="pill info" id="azfw-chain-badge">—</span>
+            </div>
+            <div class="tier-head" id="azfw-pos-row" hidden>
+              <span class="label" id="azfw-pos-label">Position in chain</span>
+              <select id="azfw-pos" aria-labelledby="azfw-pos-label" style="flex:1; max-width:260px"></select>
+            </div>
+            <p class="hint" id="azfw-chain-hint" hidden><b>Dual N-S:</b> workloads → Azure Firewall → NS NVAs → Internet (<code>RT-AzureFirewallSubnet</code> with 0/0 → NS ILB). <b>Dual E-W:</b> spokes/on-prem → Azure Firewall → EW NVAs → destination. <b>Single-tier:</b> everything → Azure Firewall → the NVA tier — no tier choice needed.</p>
+          </div>
+
+          <label class="check" id="row-azfw-reserve"><input type="checkbox" id="sec-azfw-reserve" checked><span>Reserve <code>AzureFirewallSubnet</code> + mgmt subnet <small>(native exit ramp)</small> <a class="ref" href="https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/design-principles" target="_blank" rel="noopener noreferrer" title="ALZ design principles — keeping the Azure-native exit ramp pre-provisioned">ⓘ</a></span></label>
+        </div>
+
+        <div id="azfw-config" class="stack" hidden>
+          <label class="check"><input type="checkbox" id="azfw-mgmt" checked><span>Deploy <code>AzureFirewallManagementSubnet</code> <small>(required for forced tunneling)</small></span></label>
+          <p class="hint">Azure Firewall is platform-HA (availability zones) — no ILB or instance count needed. East-west SNAT requires Private IP ranges = <code>255.255.255.255/32</code> on the Firewall Policy <a class="ref" href="https://learn.microsoft.com/azure/firewall/snat-private-range" target="_blank" rel="noopener noreferrer" title="Azure Firewall SNAT private IP address ranges — Microsoft Learn">ⓘ</a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · Hub services -->
+    <section class="card" id="card-services">
+      <header class="card-head">
+        <span class="card-step">5</span>
+        <h2>Hub Services</h2>
+      </header>
+      <div class="card-body two-col">
+        <label class="check"><input type="checkbox" id="svc-bastion" checked><span>Azure Bastion <small>/26</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-dns" checked><span>DNS Private Resolver <small>2 × /28</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-dc" checked><span>Domain Controllers <small>/24</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-mon" checked><span>Monitoring <small>/24</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-kv" checked><span>Key Vault PEs <small>/24</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-jump" checked><span>Jump Servers <small>/24</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-pe" checked><span>Hub Private Endpoints <small>/24</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-mgmt" checked><span>Management section <small>3 × /24</small></span></label>
+        <label class="check"><input type="checkbox" id="svc-ddos" checked><span>DDoS Network Protection <small>plan</small></span></label>
+      </div>
+    </section>
+
+    <!-- 6 · Spokes -->
+    <section class="card" id="card-spokes">
+      <header class="card-head">
+        <span class="card-step">6</span>
+        <h2>Spoke VNets <small>(T-shirt catalog)</small></h2>
+        <button id="btn-add-spoke" class="btn small" type="button">+ Add</button>
+      </header>
+      <div class="card-body">
+        <p class="hint">Any environment, any mix. Sizes: <b>S</b> /24 · <b>M</b> /22 · <b>L</b> /20 <a class="ref" href="https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing" target="_blank" rel="noopener noreferrer" title="CAF: plan for IP addressing — T-shirt sizing for subscription vending">ⓘ</a> Name + env + region build every generated name: <code>vnet-crm-prod-westeurope</code>, <code>snet-web-…</code>, <code>nsg-web-…</code>, <code>rt-…</code></p>
+        <datalist id="env-list"></datalist>
+        <div id="spoke-list" class="stack"></div>
+        <p class="hint subtle" id="spoke-empty">No spokes yet — add your first workload.</p>
+        <div id="pool-meters" class="stack"></div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ════════════════ RESULTS ════════════════ -->
+  <section class="results" id="results" aria-label="Generated design">
+
+    <div id="warnings" class="warnings" aria-live="polite"></div>
+
+    <nav class="tabs" role="tablist" aria-label="Design sections">
+      <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-overview" id="tabbtn-overview" type="button">Overview</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-plan" id="tabbtn-plan" type="button">IP Plan</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-routing" id="tabbtn-routing" type="button">Routing</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-security" id="tabbtn-security" type="button">NSGs</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-ops" id="tabbtn-ops" type="button">Peering &amp; DNS</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-export" id="tabbtn-export" type="button">Export</button>
+    </nav>
+
+    <div class="tabpanes">
+      <section id="tab-overview" role="tabpanel" aria-labelledby="tabbtn-overview">
+        <div id="summary-cards" class="cards-row"></div>
+        <div class="panel">
+          <h3>Topology</h3>
+          <div id="diagram" class="diagram-wrap"></div>
+        </div>
+        <div class="panel">
+          <h3>Capacity &amp; Platform Guardrails</h3>
+          <div id="capacity"></div>
+        </div>
+      </section>
+
+      <section id="tab-plan" role="tabpanel" aria-labelledby="tabbtn-plan" hidden>
+        <div class="panel"><h3>Master Allocation</h3><div id="master-plan"></div></div>
+        <div class="panel"><h3>Hub VNet</h3><div id="hub-plan"></div></div>
+        <div class="panel"><h3>Spoke VNets</h3><div id="spoke-plan"></div></div>
+      </section>
+
+      <section id="tab-routing" role="tabpanel" aria-labelledby="tabbtn-routing" hidden>
+        <div id="route-tables"></div>
+        <div class="panel"><h3>BGP Propagation Guardrails</h3><div id="bgp-table"></div></div>
+      </section>
+
+      <section id="tab-security" role="tabpanel" aria-labelledby="tabbtn-security" hidden>
+        <div id="nsg-list"></div>
+        <div class="panel"><h3>Application Security Groups</h3><div id="asg-table"></div></div>
+      </section>
+
+      <section id="tab-ops" role="tabpanel" aria-labelledby="tabbtn-ops" hidden>
+        <div class="panel"><h3>Hub ↔ Spoke Peering Flags</h3><div id="peering"></div></div>
+        <div class="panel"><h3>DNS &amp; Private Endpoints</h3><div id="dns-pe"></div></div>
+      </section>
+
+      <section id="tab-export" role="tabpanel" aria-labelledby="tabbtn-export" hidden>
+        <div class="panel">
+          <h3>Export Design</h3>
+          <p class="hint">Everything is generated from the current configuration — re-export after any change.</p>
+          <div class="export-grid">
+            <button id="exp-md" class="btn primary" type="button">Markdown Report (.md)</button>
+            <button id="exp-csv-all" class="btn" type="button">All-in-one (.csv) — VNets + Subnets + RTs + NSGs</button>
+            <button id="exp-csv-subnets" class="btn" type="button">Subnets (.csv)</button>
+            <button id="exp-csv-routes" class="btn" type="button">Route Tables (.csv)</button>
+            <button id="exp-csv-nsg" class="btn" type="button">NSG Rules (.csv)</button>
+            <button id="exp-json" class="btn" type="button">Design File (.json)</button>
+          </div>
+          <p class="hint subtle">The design also autosaves to this browser (localStorage) on every change.</p>
+        </div>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <p>AzIP-Ranger · aligned to Microsoft CAF / ALZ guidance · 100% client-side, no data leaves this page.</p>
+      <p class="made">Made with <svg class="heart" viewBox="0 0 16 16" width="11" height="11" role="img" aria-label="love"><path d="M8 13.8S2.2 10.1 2.2 6.4c0-2 1.5-3.4 3.3-3.4 1 0 2 .5 2.5 1.4.5-.9 1.5-1.4 2.5-1.4 1.8 0 3.3 1.4 3.3 3.4 0 3.7-5.8 7.4-5.8 7.4Z"/></svg> by <a class="made-link" href="https://github.com/sarmadjari" target="_blank" rel="noopener noreferrer">Sarmad Jari</a></p>
+    </footer>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- bump ?v= on every release so browsers never serve a stale build -->
+<script src="js/config.js?v=2.6.1"></script>
+<script src="js/cidr.js?v=2.6.1"></script>
+<script src="js/engine.js?v=2.6.1"></script>
+<script src="js/app.js?v=2.6.1"></script>
+</body>
+</html>
