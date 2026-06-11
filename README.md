@@ -11,6 +11,7 @@
 ---
 
 **AzIP-Ranger** is a free, lightweight helper tool to plan your Azure Landing Zone IP ranges. It is designed to be used completely as-is. The utility turns a few structured inputs into a complete, validated Azure landing zone network architecture, automating Microsoft Cloud Adoption Framework (CAF) guidelines for IP addressing, routing tables, and security boundaries.
+> http://github.sarmad.no/AzIP-Ranger/
 
 ## 🚀 Key Features
 
