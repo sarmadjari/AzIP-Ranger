@@ -1,7 +1,5 @@
-Test/azip-ranger-all.csv
-Test/azip-ranger-design.json
-Test/azip-ranger-design.md
-Test/VALIDATION-REPORT.md
-tests/run.js
-tools/generate.js
+.gitignore
 .DS_Store
+/tests
+/Test
+/tools
