@@ -1205,7 +1205,8 @@ Per the CAF [traditional-topology](https://learn.microsoft.com/en-us/azure/cloud
 ### Phase 3: Routing
 - [ ] Create all route tables per Section 7
 - [ ] **Verify** NVA egress routes use `Virtual Network` not ILB (RT-EW-External, RT-EW-Internal)
-- [ ] **Verify** `To-NVA-Internal-Direct` route exists in RT-Spoke-Workloads
+- [ ] **Verify** the `To-NVA-Internal-Direct*` routes exist in RT-Spoke-Workloads (one per NVA internal subnet, incl. §20 chain segments)
+- [ ] **Verify** chain-segment route tables resolve hop-by-hop to the next element (incl. the Azure Firewall slot) per §20.5 — `tests/run.js` automates this
 - [ ] **Verify** RT-EW-Internal has BGP propagation **enabled** (v4.6 change — required for on-prem return path)
 - [ ] **Verify** RT-NS-External has BGP propagation **disabled** (v4.6 change)
 - [ ] Associate route tables to subnets
@@ -1226,7 +1227,8 @@ Per the CAF [traditional-topology](https://learn.microsoft.com/en-us/azure/cloud
   - [ ] Spoke side: `UseRemoteGateways = true`, `AllowForwardedTraffic = true`, `AllowVirtualNetworkAccess = true`
   - [ ] Hub side: `AllowGatewayTransit = true`, `AllowForwardedTraffic = true`, `AllowVirtualNetworkAccess = true`
   - [ ] Confirm spoke does **not** also host its own VPN/ER gateway (mutually exclusive with `UseRemoteGateways = true`)
-- [ ] Apply RT-Spoke-Workloads to all spoke subnets
+- [ ] Apply RT-Spoke-Workloads to all spoke subnets — verify it carries the hub's exact /19 prefixes, To-Bastion-Direct, and one To-NVA-Internal-Direct per NVA internal subnet (v5.2 §7.1)
+- [ ] **Vending step (v5.2/F1)**: add the new spoke's exact-prefix route to every hub-side steering table (RT-GatewaySubnet, RT-Platform-Workloads, RT-Management, RT-NVA-Mgmt, RT-NS-External, RT-AzureFirewallSubnet where present) — and remove it on decommission; at scale manage these via AVNM UDR configurations (§15.4)
 - [ ] Apply appropriate NSGs to spoke subnets
 - [ ] Configure Private Endpoints per Section 11
 - [ ] **Set** `privateEndpointNetworkPolicies = Enabled` on PE subnets (or `NetworkSecurityGroupEnabled` if only NSG enforcement is needed)
@@ -1679,6 +1681,8 @@ All selectable values live in `web/config.js` (`AZIP_CONFIG`): Azure regions, en
 | **CAF — Traditional Azure networking topology** | https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/traditional-azure-networking-topology |
 | **CAF — Plan for IP addressing** | https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing |
 | Update VNet peering address space (resync) | https://learn.microsoft.com/en-us/azure/virtual-network/update-virtual-network-peering-address-space |
+| **v5.2 — Virtual network traffic routing (route selection / LPM)** | https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing |
+| **v5.2 — AVNM user-defined route management (1,000 UDRs/table)** | https://learn.microsoft.com/en-us/azure/virtual-network-manager/concept-user-defined-route |
 | Azure IPAM (open-source) | https://azure.github.io/ipam |
 | ALZ policy assignments baseline | https://aka.ms/alz/policies |
 | **v5.1 — Gateway Load Balancer (transparent NVA insertion)** | https://learn.microsoft.com/en-us/azure/load-balancer/gateway-overview |

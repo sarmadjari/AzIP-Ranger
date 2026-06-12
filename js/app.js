@@ -61,6 +61,12 @@
     "15":  ["Azure networking limits", MS + "azure/azure-resource-manager/management/azure-subscription-service-limits"],
     "16":  ["CAF: plan for IP addressing", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing"],
     "17":  ["ALZ implementation guidance", MS + "azure/cloud-adoption-framework/ready/landing-zone/"],
+    "20":  ["Azure route selection (LPM) & UDR rules", MS + "azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing"],
+    "20.3":["HA NVA patterns / Gateway Load Balancer", MS + "azure/architecture/networking/guide/network-virtual-appliance-high-availability"],
+    "21":  ["Azure Firewall SNAT private ranges", MS + "azure/firewall/snat-private-range"],
+    "23":  ["CAF resource abbreviations", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations"],
+    "24":  ["CAF traditional networking topology", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/traditional-azure-networking-topology"],
+    "25":  ["Azure subscription & service limits", MS + "azure/azure-resource-manager/management/azure-subscription-service-limits"],
   };
   function refFor(num) {
     let k = num;

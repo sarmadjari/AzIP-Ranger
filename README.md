@@ -25,8 +25,8 @@
 ## 📂 Project Structure
 
 ```text
-IP Ranges for Azure Landing Zone/
-├── index.html        # Main application UI and structure
+AzIP-Ranger/
+├── index.html        # Main application UI (header badge shows engine + plan version)
 ├── README.md         # Project documentation (this file)
 ├── LICENSE           # MIT License terms
 ├── .nojekyll         # Disables Jekyll processing on GitHub Pages
@@ -34,12 +34,13 @@ IP Ranges for Azure Landing Zone/
 │   └── styles.css    # Premium, responsive theme styles (light/dark)
 ├── js/
 │   ├── app.js        # DOM event binding & UI state coordination
-│   ├── engine.js     # IP range allocation and rule verification
+│   ├── engine.js     # IP allocation, routing/NSG generation, rule verification
+│   ├── export.js     # Markdown / CSV / JSON serializers (shared by app, CLI & tests)
 │   ├── cidr.js       # IPv4 CIDR math and subnet arithmetic
 │   └── config.js     # Default regions, environments, and dropdown values
 └── docs/
-    ├── azure-landing-zone-ip-plan.md             # Core architecture reference
-    └── azure-landing-zone-network-design-guide.md # General design constraints
+    ├── azure-landing-zone-ip-plan.md              # Core architecture reference (v5.2)
+    └── azure-landing-zone-network-design-guide.md # Design principles & golden rules (v1.1)
 ```
 
 ## 🛠️ Getting Started & Usage
