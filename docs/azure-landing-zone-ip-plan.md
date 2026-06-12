@@ -1,12 +1,19 @@
 # Azure Landing Zone – IP Addressing Scheme & Network Security Design
-## Production Reference Architecture — v5.1 (Final)
+## Production Reference Architecture — v5.2 (Final)
 
 > **Document Status**: Production-Ready
-> **Version**: v5.1 — supersedes v5.0; integrates the *Network Design v5.1 Addendum* (NVA group chains, VMSS appliances, chained Azure Firewall, catalog-driven naming) into a single document
+> **Version**: v5.2 — supersedes v5.1; applies the deep-scan fixes **F1–F6** (`Test/VALIDATION-REPORT.md`, adjudicated against live Microsoft Learn 2026-06-12): exact-prefix routing vs peering LPM, the fabric-routed chain cascade, and four NSG corrections (§19.7)
 > **Classification**: Enterprise Network Architecture Blueprint  
 > **Scope**: Hub-and-spoke topology with dual-tier NVA security (North-South + East-West), extended in v5.1 with **NVA group chains, VMSS-based appliance groups, chained Azure Firewall, and catalog-driven CAF naming** (§20–§25)  
-> **Companion tool**: **AzIP-Ranger** (`web/index.html`) implements and validates every rule in §20–§25 with an automated test suite; all selectable values live in `web/config.js` (`AZIP_CONFIG`)  
+> **Companion tool**: **AzIP-Ranger** (`index.html`) implements and validates every rule in §20–§25 with an automated test suite (`tests/run.js`, including an effective-route LPM simulator); all selectable values live in `js/config.js` (`AZIP_CONFIG`)  
 > **Verified Against**: **Microsoft Learn** and **Azure Cloud Adoption Framework / Azure Landing Zone guidance** — six CAF pages fetched and applied 2026-06-11 (v5.0 core), plus the HA-NVA, Azure Firewall SNAT, Gateway Load Balancer, CAF resource naming/abbreviations, and Azure subscription-limits guidance for the v5.1 extensions (§26)
+
+> ### What's new in v5.2 (deep-scan fixes)
+> A full validation of generated designs against live Microsoft Learn surfaced two critical routing defects and four NSG gaps (IDs **F1–F6**, `Test/VALIDATION-REPORT.md`). v5.2 fixes all of them — see **§19.7** for the changelog and root-cause attribution. Headlines:
+>
+> 1. **F1 (Critical, §7–§8)** — Azure selects routes by **longest-prefix-match across all sources**; UDR-beats-system applies only at *identical* prefixes ([route selection](https://learn.microsoft.com/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing)). The former `To-Hub 10.0.0.0/16` and `To-Spokes 10.4.0.0/14` summaries silently lost to the more-specific peering system routes: spoke↔hub and platform→spoke traffic bypassed inspection and **on-prem↔spoke flows broke outright** (forward leg bypassed the EW NVA, return leg hit it stateful → dropped). All steering routes now use **exact peered-VNet prefixes** (hub /19s in spoke RTs; one route per spoke in hub-side RTs), with direct-return exemptions for Bastion and every NVA internal subnet.
+> 2. **F2 (Critical, §20–§21)** — the v5.1 same-subnet chain ("appliance forwards to the next VIP") has no Azure fabric mechanism: Azure forwards on destination IP per effective routes and ignores guest-OS next hops toward a same-subnet VIP. Chains are now a **fabric-routed UDR cascade**: each chained group ≥ 2 owns a dedicated internal subnet (plus one forward subnet for the EW/single tier's group 1), and per-subnet route tables steer segment → segment — Azure Firewall slots included. Depth > 3 triggers a warning (Gateway Load Balancer recommended for N-S insertion).
+> 3. **F3–F6 (§9, §11.3)** — spoke PE NSGs now allow the spoke's own workloads; chained tiers allow hop-to-hop segments; the Key Vault PE subnet got its missing 443 allow; the dead `data→app 1433` rule is gone; NSG-Management is scoped to the declared hub prefixes; §6.5's SNAT scope now explicitly covers PE-hosting subnets.
 
 > ### What's new in v5.1
 > v5.1 folds the former *Network Design Addendum* into this document as six new sections. **Nothing in the v5.0 core (§1–§19) is invalidated** — the default single-group design is reproduced exactly (all anchors — `10.0.3.100`, `10.0.5.100`, the three hub /19s, the T-shirt pools — unchanged). The additions are opt-in extensions:
@@ -159,6 +166,8 @@ This design is **IPv4-only by decision**, re-evaluated per workload: the platfor
 | AzureFirewallManagementSubnet | `10.0.0.192/26` | 59 | Azure Firewall Mgmt (reserved for forced tunneling) | None (Azure-managed) | None (not supported) |
 
 > **Architecture Note**: The Transit subnet (`10.0.6.0/24`) from earlier designs has been **removed** and is now reserved for future use. The Transit ILB VIP is now consolidated into `Subnet-EW-Internal` to simplify the architecture and avoid the need for a 3rd NIC on each NVA. See Section 5 for ILB details.
+
+> **v5.2 (F2) — chain-segment subnets**: when an inspection tier runs **≥ 2 chained NVA groups** (§20), each chained group i ≥ 2 receives a dedicated `/24` internal subnet (`Subnet-NS-Internal-i` / `Subnet-EW-Internal-i`), and a chained East-West/single tier adds one `Subnet-EW-Forward` (`Subnet-FW-Forward`) for group 1's forward NICs. They are allocated **after** `Subnet-PrivateEndpoints-Hub` (from `10.0.9.0/24` upward) so every v5.0 anchor above is unchanged. Single-group tiers (the default) create none of them.
 
 > **v4.9 fix — no route table on Subnet-PrivateEndpoints-Hub**: earlier versions referenced an `RT-PrivateEndpoints` that was never defined anywhere in §7. None is needed: Private Endpoints originate no traffic of their own, and **PE return traffic bypasses UDRs** unless `privateEndpointNetworkPolicies` route-table enforcement plus a deliberate UDR pattern is engineered. Associating an empty route table would add an object with zero effect. NSG enforcement (§11.3) is retained via `privateEndpointNetworkPolicies = Enabled`.
 
@@ -388,7 +397,7 @@ Each NVA requires **2 NICs** (not 3):
 
 **SNAT Configuration:**
 - SNAT source IP: Use the NVA's internal interface IP (`10.0.5.x`)
-- Apply SNAT to traffic leaving the NVA towards spoke destinations (`10.4.0.0/14`)
+- Apply SNAT to traffic leaving the NVA towards spoke destinations (`10.4.0.0/14`) **and towards PE-hosting subnets** (`10.0.8.0/24` hub PE, `10.0.35.0/24` Key Vault PE, spoke PE subnets) — **v5.2 fix**: Private Endpoint *return* traffic bypasses UDRs, so an un-SNAT'd NVA→PE leg would be asymmetric and break; SNAT pins the return to the NVA. This resolves the former §6.5 (spokes-only) vs §11.3 (PE rules assume SNAT) contradiction.
 - Preserve original source IP in NVA logs for audit purposes
 
 **Azure Firewall SNAT Behavior (if used instead of third-party NVA):**
@@ -431,11 +440,13 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 | Route Name | Address Prefix | Next Hop Type | Next Hop Address |
 |------------|----------------|---------------|------------------|
-| To-Spokes | `10.4.0.0/14` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-`<spoke-name>` — **one route per spoke, exact prefix** | `10.4.0.0/22`, `10.4.4.0/22`, `10.5.240.0/20`, `10.6.0.0/24`, … | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 | To-SharedServices | `10.0.32.0/19` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 | To-Management | `10.0.64.0/19` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 
 **BGP Propagation**: ✅ Enabled (Required — disabling breaks the gateway)
+
+> **v5.2 (F1) — exact spoke prefixes are mandatory**: gateway transit gives the GatewaySubnet a peering system route for **each spoke VNet's address space** (/22, /20, /24 …). Azure picks routes by longest-prefix-match across all sources, so the former `To-Spokes 10.4.0.0/14` summary **never fired** — on-prem→spoke traffic went direct (uninspected), while the spoke's return UDR steered through the EW NVA, which dropped the one-sided flow. An equal-prefix UDR ties with the peering route and wins (User > BGP > System), restoring inspection and symmetry. The AzIP-Ranger vending flow appends/removes the route as spokes are allocated/decommissioned; budget UDRs (400/table default, 1,000 with AVNM — §15.4).
 
 > **Critical**: This route table ensures on-premises traffic arriving via VPN/ExpressRoute is routed through the EW NVA for inspection before reaching spokes or platform services. A `0.0.0.0/0` route is **NOT permitted** on GatewaySubnet — only specific destination prefixes are allowed. BGP propagation **must** remain enabled.
 
@@ -444,12 +455,18 @@ These work without SNAT because of a documented Standard Load Balancer property:
 | Route Name | Address Prefix | Next Hop Type | Next Hop Address |
 |------------|----------------|---------------|------------------|
 | To-Internet | `0.0.0.0/0` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
-| To-Hub | `10.0.0.0/16` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-Hub-Connectivity | `10.0.0.0/19` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-Hub-SharedServices | `10.0.32.0/19` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-Hub-Management | `10.0.64.0/19` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-Hub-Plan (inspected black-hole) | `10.0.0.0/16` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 | To-OtherSpokes | `10.4.0.0/14` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 | To-OnPremises | `<on-prem-supernet>` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
-| To-NVA-Internal-Direct | `10.0.5.0/24` | Virtual Network | — |
+| To-Bastion-Direct | `10.0.1.0/26` | Virtual Network | — |
+| To-NVA-Internal-Direct — **one per NVA internal subnet** (EW + NS, incl. §20 chain segments) | `10.0.5.0/24`, `10.0.3.0/24`, (`10.0.9.0/24`, …) | Virtual Network | — |
 
 **BGP Propagation**: ❌ Disabled
+
+> **v5.2 (F1) — why three /19s instead of the /16**: the spoke's peering system routes equal the hub VNet's **declared prefixes** (the three /19s since v5.0 C-1). A `/16` UDR is less specific and loses the LPM tie-break — every spoke→hub flow silently bypassed the EW NVA (a v5.0 regression: with a /16 hub VNet the prefixes matched and the UDR won). Equal-prefix /19 UDRs restore inspection; `To-Hub-Plan /16` is retained purely as the inspected black-hole for unassigned hub space (§3.0). `To-Bastion-Direct` keeps Bastion→VM session returns off the inspection path (Bastion traffic arrives via the VNet directly — a steered return would be one-sided and dropped). `To-OtherSpokes` may stay a summary: spokes never peer with each other, so no competing system route exists.
 
 > **On-premises parameterisation**: Replace `<on-prem-supernet>` with your actual on-premises address space. The example value `192.168.0.0/16` in prior diagrams is illustrative only. If on-prem spans multiple non-contiguous ranges (e.g., `10.100.0.0/16` + `172.16.0.0/12`), add **one UDR per prefix**, or advertise a supernet from on-prem that covers all of them. Hard-coding a placeholder risks missed destinations because BGP propagation is disabled on this route table.
 
@@ -459,8 +476,9 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 | Route Name | Address Prefix | Next Hop Type | Next Hop Address |
 |------------|----------------|---------------|------------------|
-| To-Spokes | `10.4.0.0/14` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
+| To-`<spoke-name>` — one route per spoke, exact prefix (v5.2/F1) | `10.4.0.0/22`, `10.4.4.0/22`, … | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
 | To-SharedServices | `10.0.32.0/19` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
+| To-Management | `10.0.64.0/19` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
 
 **BGP Propagation**: ❌ Disabled
 
@@ -472,9 +490,13 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 | Route Name | Address Prefix | Next Hop Type | Next Hop Address |
 |------------|----------------|---------------|------------------|
-| To-Spokes | `10.4.0.0/14` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| *(no routes — single-group tier)* | — | — | — |
 
-**BGP Propagation**: ❌ Disabled
+**BGP Propagation**: ❌ Disabled (the empty route table is kept precisely to pin this flag)
+
+> **v5.2 (F1) — `To-Spokes` removed**: the NS NVA's emissions toward spokes are *deliveries and un-NAT'd returns* (DNAT'd inbound publishing, internet-egress replies). Steering them into the EW ILB created **one-sided flows at the EW NVA** — the matching forward legs never crossed it, so a stateful inspector drops them. (Pre-v5.2 this never bit in deployments only because the /14 summary lost to the peering routes and the route was inert — see F1.) NS→spoke legs now ride the peering system routes; symmetry comes from the spoke RT's `To-NVA-Internal-Direct` routes back to the NS NVA's SNAT NICs.
+>
+> **When the tier is chained (§20)**: this table instead carries exactly one route — `To-NextChainHop 0.0.0.0/0 → <next segment hop>` — and each later segment's own subnet RT continues the cascade (`RT-NS-Internal-i`); the **last** segment returns to the empty table above (egress via the external NICs).
 
 > **v4.6 fix**: removed the `0.0.0.0/0 → ILB-NS-Inbound (10.0.2.100)` route. That route was a hairpin — it would have sent Internet-bound traffic from the NVA's internal NIC back to its own inbound ILB. The NVA OS routes Internet-bound replies out its external NIC, which uses system default routing; no UDR is needed on the internal side. If a future scenario requires the internal NIC to originate Internet traffic, reintroduce the route with a clear rationale.
 
@@ -503,11 +525,13 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 > **Critical Fix (retained from v4.5)**: `To-Spokes` and `To-Hub` use **Virtual Network** (system routes) instead of pointing to the ILB. The NVA egresses traffic directly to spokes via VNet peering, not back through its own load balancer.
 
+> **v5.2 (F2) — role in chained tiers**: with ≥ 2 chained EW groups this table describes **group 1's client-facing subnet only** (returns/deliveries toward clients + the BGP on-prem return path). Group 1's *forward* leg leaves from `Subnet-EW-Forward` (`RT-EW-Forward`: per-spoke + platform prefixes → hop 2), and segments 2…n use `RT-EW-Internal-i` — see §20.5 for the full cascade tables.
+
 ### 7.6 RT-Platform-Workloads (All platform-initiated flows)
 
 | Route Name | Address Prefix | Next Hop Type | Next Hop Address |
 |------------|----------------|---------------|------------------|
-| To-Spokes | `10.4.0.0/14` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-`<spoke-name>` — one route per spoke, exact prefix (v5.2/F1) | `10.4.0.0/22`, `10.4.4.0/22`, … | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 | To-Internet | `0.0.0.0/0` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
 | To-OnPremises | `<on-prem-supernet>` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 
@@ -526,7 +550,7 @@ These work without SNAT because of a documented Standard Load Balancer property:
 |------------|----------------|---------------|------------------|
 | To-Internet | `0.0.0.0/0` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
 | To-OnPremises | `<on-prem-supernet>` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
-| To-Spokes | `10.4.0.0/14` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-`<spoke-name>` — one route per spoke, exact prefix (v5.2/F1) | `10.4.0.0/22`, `10.4.4.0/22`, … | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 
 **BGP Propagation**: ❌ Disabled
 
@@ -538,7 +562,7 @@ These work without SNAT because of a documented Standard Load Balancer property:
 |------------|----------------|---------------|------------------|
 | To-Internet | `0.0.0.0/0` | Virtual Appliance | `10.0.3.100` (ILB-NS-Outbound) |
 | To-OnPremises | `<on-prem-supernet>` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
-| To-Spokes | `10.4.0.0/14` | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
+| To-`<spoke-name>` — one route per spoke, exact prefix (v5.2/F1) | `10.4.0.0/22`, `10.4.4.0/22`, … | Virtual Appliance | `10.0.5.100` (ILB-EW-Outbound) |
 
 **BGP Propagation**: ❌ Disabled
 
@@ -556,7 +580,10 @@ These work without SNAT because of a documented Standard Load Balancer property:
 | RouteServerSubnet | N/A (Azure-managed) | Cannot modify; no UDR or NSG supported |
 | AzureBastionSubnet | N/A | UDR not supported on this subnet |
 | RT-NS-External | ❌ Disabled | **v4.6 change**: NS NVA external NICs face Internet via Public IPs; do not originate or terminate on-prem traffic. |
-| RT-NS-Internal | ❌ Disabled | UDR controls all egress; NS NVA does not participate in on-prem flows. |
+| RT-NS-Internal | ❌ Disabled | v5.2: table is empty (or carries only the chain-cascade 0/0) — kept to pin BGP off; NS NVA does not participate in on-prem flows. |
+| RT-NS-Internal-i / RT-FW-Internal-i (chain segments, §20.5) | ❌ Disabled (last EW/single segment: ✅ Enabled) | Mid segments use explicit cascade routes only; the LAST East-West/single segment needs gateway routes for on-prem deliveries. |
+| RT-EW-Forward / RT-FW-Forward (§20.5) | ❌ Disabled | Forward-steering only — explicit cascade routes. |
+| RT-AzureFirewallSubnet (when chained mid-slot, §21) | ❌ Disabled | Explicit cascade routes to the next chain hop. |
 | RT-EW-External | ❌ Disabled | Management/future expansion only; no data-plane traffic in current design. |
 | RT-EW-Internal | ✅ Enabled | **v4.6 change**: EW NVA internal NICs participate in bidirectional on-prem flows; BGP-learned routes provide return path to on-premises. Explicit UDRs for `To-Spokes` and `To-Hub` override via LPM. |
 | RT-Spoke-Workloads | ❌ Disabled | Force all traffic through NVA via explicit UDRs. |
@@ -620,11 +647,14 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 | Priority | Name | Direction | Source | Destination | Port | Protocol | Action |
 |----------|------|-----------|--------|-------------|------|----------|--------|
-| 100 | AllowFromSpokes | Inbound | `10.4.0.0/14` | Subnet-NS-Internal | Any | Any | Allow |
-| 110 | AllowFromSharedServices | Inbound | `10.0.32.0/19` | Subnet-NS-Internal | Any | Any | Allow |
-| 120 | AllowFromEW | Inbound | `10.0.4.0/23` | Subnet-NS-Internal | Any | Any | Allow |
+| 100 | AllowFromSpokes | Inbound | `10.4.0.0/14` | NS internal subnet(s) | Any | Any | Allow |
+| 110 | AllowFromSharedServices | Inbound | `10.0.32.0/19` | NS internal subnet(s) | Any | Any | Allow |
+| 115 | AllowFromChainSegments *(chained tiers only — v5.2/F4)* | Inbound | all NS internal subnets (`10.0.3.0/24`, `10.0.9.0/24`, …) | NS internal subnet(s) | Any | Any | Allow |
+| 120 | AllowFromEW | Inbound | `10.0.4.0/23` (+ EW chain/forward subnets when chained) | NS internal subnet(s) | Any | Any | Allow |
 | 150 | AllowAzureLoadBalancer | Inbound | AzureLoadBalancer | Any | Any | Any | Allow |
 | 4096 | DenyAllInbound | Inbound | Any | Any | Any | Any | Deny |
+
+> **v5.2 (F4)**: the NSG applies to **every** NS internal subnet (base + §20 chain segments). `AllowFromChainSegments` legalises the fabric-routed hop-to-hop forward legs (each hop is a NEW inbound flow at the next segment; returns ride NSG flow state and need no rule). Without it the custom `DenyAllInbound 4096` silently killed chained traffic — the EW tier only escaped via its broad `AllowFromPlatform` rule.
 
 ### 9.4 NSG-EW-External
 
@@ -639,16 +669,20 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 ### 9.5 NSG-EW-Internal
 
+Applies to **all** East-West internal subnets: `Subnet-EW-Internal` (+ `Subnet-EW-Internal-i` chain segments and `Subnet-EW-Forward` when chained — §20).
+
 | Priority | Name | Direction | Source | Destination | Port | Protocol | Action |
 |----------|------|-----------|--------|-------------|------|----------|--------|
-| 100 | AllowFromEWExternal | Inbound | Subnet-EW-External | Subnet-EW-Internal | Any | Any | Allow |
-| 110 | AllowFromSpokes | Inbound | `10.4.0.0/14` | Subnet-EW-Internal | Any | Any | Allow |
-| 120 | AllowFromSharedServices | Inbound | `10.0.32.0/19` | Subnet-EW-Internal | Any | Any | Allow |
-| 130 | AllowFromPlatform | Inbound | `10.0.0.0/16` | Subnet-EW-Internal | Any | Any | Allow |
+| 100 | AllowFromEWExternal | Inbound | Subnet-EW-External | EW internal subnet(s) | Any | Any | Allow |
+| 110 | AllowFromSpokes | Inbound | `10.4.0.0/14` | EW internal subnet(s) | Any | Any | Allow |
+| 115 | AllowFromChainSegments *(chained tiers only — v5.2)* | Inbound | all EW internal + forward subnets | EW internal subnet(s) | Any | Any | Allow |
+| 120 | AllowFromSharedServices | Inbound | `10.0.32.0/19` | EW internal subnet(s) | Any | Any | Allow |
+| 125 | AllowFromAzureFirewall *(when chained into E-W — §21)* | Inbound | `10.0.0.128/26` | EW internal subnet(s) | Any | Any | Allow |
+| 130 | AllowFromPlatform | Inbound | `10.0.0.0/16` | EW internal subnet(s) | Any | Any | Allow |
 | 150 | AllowAzureLoadBalancer | Inbound | AzureLoadBalancer | Any | Any | Any | Allow |
 | 4096 | DenyAllInbound | Inbound | Any | Any | Any | Any | Deny |
 
-> **Note**: NSG-EW-Internal now allows traffic from spokes and platform because `ILB-EW-Outbound` (`10.0.5.100`) is the entry point for all East-West inspection.
+> **Note**: NSG-EW-Internal allows traffic from spokes and platform because `ILB-EW-Outbound` (`10.0.5.100`) is the entry point for all East-West inspection. Rule 115 is technically shadowed by rule 130 here — it is kept narrow and explicit for auditability of the chain legs.
 
 ### 9.6 NSG-SharedServices
 
@@ -659,6 +693,7 @@ These work without SNAT because of a documented Standard Load Balancer property:
 | 100 | AllowAD-TCP | Inbound | `10.0.0.0/12`, `<on-prem-supernet>` | Subnet-DomainControllers | 53,88,135,389,445,464,636,3268,3269,49152-65535 | TCP | Allow |
 | 105 | AllowAD-UDP | Inbound | `10.0.0.0/12`, `<on-prem-supernet>` | Subnet-DomainControllers | 53,88,123,389,464 | UDP | Allow |
 | 110 | AllowMonitoring | Inbound | `10.0.0.0/12` | Subnet-Monitoring | 443 | TCP | Allow |
+| 115 | AllowKeyVaultPE *(v5.2/F5)* | Inbound | EW post-SNAT range (last chain segment, e.g. `10.0.5.0/24`), `10.0.32.0/19`, `10.0.64.0/19` | Subnet-KeyVault (`10.0.35.0/24`) | 443 | TCP | Allow |
 | 140 | AllowBastionInbound | Inbound | `10.0.1.0/26` | Any | 22,3389 | TCP | Allow |
 | 150 | AllowAzureLoadBalancer | Inbound | AzureLoadBalancer | Any | Any | Any | Allow |
 | 4096 | DenyAllInbound | Inbound | Any | Any | Any | Any | Deny |
@@ -666,6 +701,8 @@ These work without SNAT because of a documented Standard Load Balancer property:
 > **v4.9 fix — AD port set and sources**: the previous rule (`389,636,88,445` TCP only) would have **broken Active Directory**: Kerberos (88) and DNS (53) also require UDP, domain join/replication require RPC Endpoint Mapper (135/TCP) plus the dynamic RPC range (49152–65535/TCP), Kerberos password change uses 464 (TCP+UDP), Global Catalog uses 3268/3269, and W32Time uses 123/UDP. Source also now includes `<on-prem-supernet>` — without it, on-prem DC replication and on-prem client logons against Azure DCs were denied by rule 4096 (on-prem is not inside `10.0.0.0/12`). Port list per [How to configure a firewall for Active Directory domains and trusts](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/config-firewall-for-ad-domains-and-trusts). Restrict the dynamic RPC range further only if your DCs pin a static RPC port.
 
 > **v4.9 fix — Bastion ingress (rule 140)**: required by the Bastion NSG doc on every target-VM subnet; the custom `DenyAllInbound` (4096) otherwise blocks Bastion sessions to DCs/monitoring/jump VMs because the default `AllowVnetInBound` (65000) is never reached.
+
+> **v5.2 fix — Key Vault PE reachability (rule 115, F5)**: `Subnet-KeyVault` hosts private endpoints, and with `privateEndpointNetworkPolicies = Enabled` this NSG is enforced on them — yet no prior rule allowed 443 to `10.0.35.0/24`, so **every** Key Vault PE was unreachable. Spoke clients arrive post-SNAT from the East-West inspector (§6.5 v5.2 scope), hub/management clients intra-VNet, and on-prem arrives post-SNAT via the EW path (`RT-GatewaySubnet` routes Shared /19 through it).
 
 #### Outbound Rules
 
@@ -692,10 +729,11 @@ These work without SNAT because of a documented Standard Load Balancer property:
 | Priority | Name | Direction | Source | Destination | Port | Protocol | Action |
 |----------|------|-----------|--------|-------------|------|----------|--------|
 | 100 | AllowFromWebTier | Inbound | ASG-WebServers | ASG-AppServers | 8080,8443 | TCP | Allow |
-| 110 | AllowFromDataTier | Inbound | ASG-DataServers | ASG-AppServers | 1433 | TCP | Allow |
 | 140 | AllowBastionInbound | Inbound | `10.0.1.0/26` | Any | 22,3389 | TCP | Allow |
 | 150 | AllowAzureLoadBalancer | Inbound | AzureLoadBalancer | Any | Any | Any | Allow |
 | 4096 | DenyAllInbound | Inbound | Any | Any | Any | Any | Deny |
+
+> **v5.2 (F6)**: the former rule 110 (`AllowFromDataTier — ASG-DataServers → ASG-AppServers : 1433`) was removed. NSGs are **stateful** — returns of app→data SQL sessions need no inbound rule — and no documented flow has the data tier *initiating* 1433 connections to the app tier. Dead allow rules widen the audit surface.
 
 ### 9.9 NSG-Spoke-Data (Example)
 
@@ -760,10 +798,13 @@ These work without SNAT because of a documented Standard Load Balancer property:
 
 | Priority | Name | Direction | Source | Destination | Port | Protocol | Action |
 |----------|------|-----------|--------|-------------|------|----------|--------|
-| 100 | AllowFromEW-SNAT | Inbound | `10.0.5.0/24` | Subnet-PE | 443 | TCP | Allow |
+| 90 | AllowFromOwnSpoke *(spoke instantiations only — v5.2/F3)* | Inbound | `<own spoke VNet CIDR>` | Subnet-PE | 443 | TCP | Allow |
+| 100 | AllowFromEW-SNAT | Inbound | EW post-SNAT range — the **last** chain segment's internal subnet (`10.0.5.0/24` single-group) | Subnet-PE | 443 | TCP | Allow |
 | 110 | AllowFromSharedServices | Inbound | `10.0.32.0/19` | Subnet-PE | 443 | TCP | Allow |
-| 120 | AllowFromOnPrem | Inbound | `<on-prem-supernet>` | Subnet-PE | 443 | TCP | Allow |
+| 120 | AllowFromOnPrem *(hub PE subnet only)* | Inbound | `<on-prem-supernet>` | Subnet-PE | 443 | TCP | Allow |
 | 4096 | DenyAllInbound | Inbound | Any | Any | Any | Any | Deny |
+
+> **v5.2 fix — own-spoke access (rule 90, F3)**: intra-spoke traffic to the spoke's own private endpoints rides the VNet system route (the spoke's own prefix is always more specific than any UDR), arrives **un-SNAT'd** with a spoke-local source, and matched no allow rule — every spoke's PEs were unreachable from their primary consumers. Each per-spoke NSG instantiation substitutes its own VNet CIDR; the **hub** PE subnet omits rule 90. Extend ports beyond 443 per service (e.g., 1433 for SQL private endpoints).
 
 > **v4.6 fix — post-SNAT source**: Rule 100 now matches `10.0.5.0/24` (EW NVA internal NIC range) rather than the pre-SNAT workload range `10.4.0.0/14`. Azure NSGs evaluate the **post-SNAT source IP** at the destination NIC. Because the EW NVA SNATs spoke→PE traffic to its internal NIC IP (`10.0.5.x` per Section 6.5), a rule matching `10.4.0.0/14` would never fire for that path — the default `AllowVnetInBound` (priority 65000, source `VirtualNetwork`) would silently cover it, defeating the tight scoping this rule was meant to provide.
 
@@ -1102,6 +1143,8 @@ Per the CAF [traditional-topology](https://learn.microsoft.com/en-us/azure/cloud
 | **VNet peerings per VNet** (the Hub) | 500 | 1 per spoke (+1 if a Region-2 hub peers in) | **Binding constraint**: max ~499 concurrent spokes per regional hub — *below* the address plan's 640-spoke theoretical max. Track in IPAM; at ~400 spokes plan either a second hub VNet (from platform-growth space) or the §1.2.1 Virtual WAN re-evaluation. |
 | **ER private-peering prefixes advertised Azure → on-prem** | 1,000 | 3 hub prefixes (v5.0, §3.0) + 1 per spoke (every spoke is single-prefix by design) | 3 + 499 = **502 ≤ 1,000** ✅ — and spoke prefixes cannot be summarised over ER (each VNet advertises its own space), so **keep spokes single-prefix**: a policy-level rule, enforced by G-1/§4.4 vending. |
 
+| **UDRs per route table** (v5.2/F1) | 400 default / **1,000 AVNM-managed** | per-spoke exact routes: 1 route per spoke in each hub-side steering table | At > 400 spokes the hub-side tables must be AVNM-managed ([UDR management](https://learn.microsoft.com/azure/virtual-network-manager/concept-user-defined-route) — Microsoft names this exact hub-and-spoke-per-spoke-firewall-routes scenario); the ≈ 499-spoke ceiling stands only with AVNM. |
+
 > **Design rule derived**: the practical Region-1 ceiling is **≈ 499 spokes**, not 640. The §4 pools deliberately over-provision address space relative to this ceiling — that is correct CAF behaviour (address space is cheap to reserve, impossible to retrofit), not waste.
 
 > **v5.1 extension**: §25 adds the per-tier NVA-subnet capacity guardrails introduced with NVA group chains (§20) — the 96 static-NIC ceiling, the 155 chained-group VIP-ladder ceiling, and the exact 251-address-per-/24 check.
@@ -1439,6 +1482,20 @@ Per the CAF [traditional-topology](https://learn.microsoft.com/en-us/azure/cloud
 | D-6 | §25 (extends §15.4) | **Updated capacity guardrails**: per-tier static-NIC ceiling **96** (`.4–.99`); chained groups per tier **155** (VIP ladder `.100–.254`); tier-subnet total (statics + VIPs + VMSS max) **251** exact check; static management NICs across all tiers **251** (`Subnet-NVA-Management` /24 — 2 × 96 always fits). | subscription limits; plan-for-ip-addressing |
 
 
+### 19.7 Fixes applied in v5.2 (deep-scan remediation, 2026-06-12)
+
+> A full validation of generated designs (`Test/VALIDATION-REPORT.md`) against **live Microsoft Learn** (route-selection rules, Bastion NSG, GWLB, AVNM, networking limits — fetched 2026-06-12) found the issues below. Root cause is attributed per item: **[DOC]** = defect originated in this document (the AzIP-Ranger engine reproduced it faithfully); **[TOOL]** = engine/template gap not present in the document. All fixes are implemented in both the document and the engine, and locked in by `tests/run.js` (81 assertions incl. an effective-route LPM simulator).
+
+| ID | Sev | Origin | Problem | Fix |
+|----|-----|--------|---------|-----|
+| F1 | Critical | **[DOC]** (v5.0 C-1 regression + /14 summaries since v4.x) | Azure route selection is LPM-first across all sources; UDR priority only ties at identical prefixes. Peering routes (hub 3×/19; spoke /22–/24) beat `To-Hub /16` / `To-Spokes /14`: spoke↔hub and platform→spoke bypassed the EW tier; **on-prem↔spoke broke** (asymmetric stateful drop); `RT-AzureFirewallSubnet`'s spoke routes skipped the post-firewall hop; spoke→hub-PE/KV was denied (un-SNAT'd sources). | §7.0–§7.8 rewritten: exact hub /19s (+ /16 black-hole) in spoke RTs; one exact-prefix route per spoke in every hub-side steering table; `To-Bastion-Direct` + per-NVA-subnet direct-return exemptions; UDR-budget guardrail (400/1,000-AVNM, §15.4/§25). |
+| F1b | High | **[DOC]** | `RT-NS-Internal To-Spokes → ILB-EW` steered NS→spoke deliveries/returns into the EW NVA as one-sided flows (latent — the summary prefix was inert pre-v5.2). | Route removed; empty RT kept to pin BGP-off (§7.3). Symmetry now via spoke `To-NVA-Internal-Direct` routes. |
+| F2 | Critical | **[DOC]** (v5.1 §20.1/§21) | Same-subnet chain forwarding ("appliance forwards to next VIP") has no fabric mechanism — Azure ignores guest-OS next hops toward same-subnet VIPs; hops 2+ never saw traffic, mid-chain Azure Firewall unreachable. | §20 rewritten as a **fabric-routed UDR cascade**: dedicated segment subnets + per-subnet RTs (§20.5), forward subnet for EW/single group 1, firewall slots fabric-routed (§21), WARN at depth > 3 with GWLB pointer (§20.3). |
+| F3 | High | **[TOOL]** (doc §11.2 underspecified) | Spoke PE NSGs reused the hub rule set; intra-spoke (un-SNAT'd, system-routed) clients were denied — every spoke's PEs unreachable from their own workloads. | `AllowFromOwnSpoke` (prio 90) per spoke instantiation (§11.3). |
+| F4 | Medium | **[DOC]** §9.3 + **[TOOL]** | No intra-tier allow for chain hop-to-hop legs on the NS internal NSG (EW escaped via its broad platform rule). | `AllowFromChainSegments` (prio 115) on chained tiers; NSGs apply to all segment subnets (§9.3/§9.5). |
+| F5 | Medium | **[DOC]** §9.6 | No rule allowed 443 to `Subnet-KeyVault` — with PE network policies Enabled, all Key Vault PEs were dead. | `AllowKeyVaultPE` (prio 115) with post-SNAT + intra-hub sources (§9.6); §6.5 SNAT scope extended to PE-hosting subnets. |
+| F6 | Low | mixed | Dead `data→app 1433` rule (§9.8); NSG-Management source wider than the declared VNet; unexplained "+1" in the peering guardrail; CSV export omitted reserved rows; chain-depth and UDR-budget signals missing. | All corrected in doc + engine; guardrails and exports updated. |
+
 ---
 
 ## 20. NVA Group Chains (extends v5.0 §5–§6)
@@ -1447,43 +1504,43 @@ Per the CAF [traditional-topology](https://learn.microsoft.com/en-us/azure/cloud
 
 Each inspection tier (North-South, East-West, or the single combined tier) holds an **ordered list of NVA groups**. A group is an independently deployed appliance cluster: a named set of 1–3 VM instances behind a Standard ILB, or a VMSS Flex scale set behind a Standard ILB.
 
-| Property | Rule |
+| Property | Rule (v5.2 — fabric-routed cascade) |
 |---|---|
 | Order | Groups are **chained by sort order**. Group 1 is the **entry point**. |
-| Routing | **Every Azure UDR references only the entry group's hop.** No other group ever appears in a route table. |
+| Workload routing | **Every workload/gateway UDR references only the entry group's hop.** Later hops are reached exclusively through the per-segment subnet route tables below. |
 | Entry hop | Group 1 keeps the v5.0 anchor: `ILB-NS-Outbound = <NS-internal>.100`, `ILB-EW-Outbound = <EW-internal>.100`, `ILB-FW-Outbound` for the single tier. |
-| Chain hops | Group *i* (i ≥ 2) receives VIP `<internal-subnet>.{99+i}` — the **VIP ladder**: `.100, .101, .102 …` — named `lbi-<tier>-<group>` per CAF. |
-| Forwarding contract | Group *i*'s NVA OS is configured to forward inspected traffic to group *i+1*'s hop. The **last** group egresses normally (NS: external NICs → Internet; EW: Virtual Network to destination). This is appliance configuration, **not** UDR — all groups share the tier subnets, and subnet-level UDRs cannot distinguish them. |
-| Symmetry | **Every group SNATs to its internal NICs.** Each chain segment then satisfies the v5.0 §6.7 invariant independently (both directions of each segment traverse the same ILB/instance), so returns retrace the chain hop-by-hop. A group that does not SNAT breaks its segment's state table — this is a hard requirement, identical in spirit to §6.5. |
+| Segment subnets | **Each chained group i ≥ 2 owns a dedicated /24 internal subnet** (`Subnet-<tier>-Internal-i`, allocated from `10.0.9.0/24` upward — §3.1) with its VIP at that subnet's `.100` (`lbi-<tier>-<group>` per CAF). A chained East-West/single tier adds **one** `Subnet-EW-Forward`/`Subnet-FW-Forward` hosting group 1's forward NICs. Standalone groups stay in group 1's subnet on the VIP ladder (`.101+`). |
+| Forwarding contract | **Segment i → i+1 steering is a per-subnet UDR**, not appliance configuration: NS segments carry `0.0.0.0/0 → <next hop>`; EW/single segments carry the lateral prefix set (one exact route per spoke + Shared /19 + Management /19 + Hub-PE /24 + on-prem) → `<next hop>` (§20.5). The **last** group egresses normally (NS: external NICs → Internet; EW: Virtual Network to destination, BGP on for on-prem). **Why**: Azure forwards on the destination IP against the subnet's effective routes — a guest-OS next hop pointing at a VIP in the *same* subnet is **not honored** ([route selection](https://learn.microsoft.com/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing)), and Microsoft's UDR guidance requires an NVA to sit in a **different subnet** than the resources routed through it. The v5.1 same-subnet contract was unimplementable (F2): hops 2+ never received traffic. |
+| Symmetry | **Every group SNATs to the NIC it forwards from.** Each chain segment then satisfies the v5.0 §6.7 invariant independently (both directions of each segment traverse the same ILB/instance), so returns retrace the chain hop-by-hop; spoke route tables carry one `To-NVA-Internal-Direct` route per NVA internal subnet (§7.1). A group that does not SNAT breaks its segment's state table — hard requirement, identical in spirit to §6.5. |
 
-### 20.2 Address law for a /24 tier subnet (precise, enforced)
+### 20.2 Address law per segment subnet (precise, enforced — v5.2)
 
-Usable host range of a /24: `.4 – .254` (Azure reserves `.0–.3` and `.255`; 251 usable — v5.0 §16).
+Usable host range of a /24: `.4 – .254` (Azure reserves `.0–.3` and `.255`; 251 usable — v5.0 §16). The law applies **per subnet**:
 
 | Range | Purpose | Capacity |
 |---|---|---|
-| `.4 – .99` | **Static NVA NICs**, allocated sequentially across groups in chain order (group 1 first) | **96 static NICs per tier, hard limit** |
-| `.100 – .254` | **VIP ladder** — group *i* owns `.{99+i}` | **155 chained groups per tier, hard limit** |
+| `.4 – .99` | **Static NVA NICs** of the groups resident in that subnet (group 1's subnet also hosts standalone groups) | **96 static NICs per subnet, hard limit** |
+| `.100` | The resident chained group's **VIP** | 1 per segment subnet |
+| `.101 – .254` | **VIP ladder for standalone groups** co-resident in group 1's subnet | **154 standalone groups, hard limit** |
 | remaining free addresses | **VMSS dynamic NICs** (Azure-assigned) | `251 − statics − VIPs` |
 
-Capacity equation per tier subnet, checked exactly by the tool:
+Capacity equations, checked exactly by the tool:
 
 ```
-need = Σ static VM NICs  +  Σ ILB VIPs (HA groups)  +  Σ VMSS max instances
-need ≤ 251         (error if exceeded)
-Σ static VM NICs ≤ 96   (error — beyond this, groups must be VMSS)
-groups ≤ 155            (error — VIP ladder exhausted)
+per segment subnet:  need = Σ static VM NICs + Σ ILB VIPs + Σ VMSS max instances ≤ 251
+per segment subnet:  Σ static VM NICs ≤ 96   (beyond this, the group must be VMSS)
+per tier:            chained groups ≤ free /24s in the Connectivity /19 (section-exhaustion check)
 ```
 
-**20-group worked example** (one tier, /24): 20 groups × 2 VMs = 40 statics (`.4–.43`) + 20 VIPs (`.100–.119`) = 60 of 251 — 24 % utilisation. The same 20 groups as VMSS (max 4 each): 0 statics + 20 VIPs + 80 dynamic = 100 of 251. Both fit comfortably; the binding limit at scale is the **96-static-NIC ceiling**, reached at e.g. 32 VM groups × 3.
+**Worked example (the Test scenario)**: NS = 4 chained groups × 2 VMs → `Subnet-NS-Internal` + `-2/-3/-4` (10.0.9–11), each at 3/251 (2 statics + 1 VIP). EW = 3 chained groups + `Subnet-EW-Forward` (10.0.12–14). Six chain subnets consume 6 of the ~23 spare /24s in the Connectivity /19.
 
-**Cross-tier**: tiers are independent /24s, so 20 groups may split across NS + EW in any ratio (e.g., 12 + 8). The shared constraint is `Subnet-NVA-Management` (/24): **all static instances across all tiers ≤ 251 management NICs** — with the per-tier 96-static ceiling, two tiers max out at 192, which always fits. VMSS management NICs are dynamic.
+**Cross-tier**: the shared constraint is `Subnet-NVA-Management` (/24): **all static instances across all tiers ≤ 251 management NICs**. VMSS management NICs are dynamic.
 
 > **Deployment-order rule**: create the ILB frontends (VIPs) and static NICs **before** any VMSS scales out, so Azure's dynamic allocator can never grab a planned address.
 
 ### 20.3 When NOT to chain — Microsoft-aligned decision record
 
-Per the [HA-NVA guide](https://learn.microsoft.com/azure/architecture/networking/guide/network-virtual-appliance-high-availability), the ILB-sandwich is Microsoft's reference for private inline NVAs — chains of 2–3 groups (e.g., vendor firewall → dedicated IDS/IPS → SSL inspector) are an accepted extension of it. Beyond that, re-evaluate:
+Per the [HA-NVA guide](https://learn.microsoft.com/azure/architecture/networking/guide/network-virtual-appliance-high-availability), the ILB-sandwich is Microsoft's reference for private inline NVAs — chains of 2–3 groups (e.g., vendor firewall → dedicated IDS/IPS → SSL inspector) are an accepted extension of it. **v5.2: the tool now emits a WARN whenever a tier's chain (including a chained Azure Firewall) exceeds 3 elements.** Beyond that, re-evaluate:
 
 1. **Gateway Load Balancer** is Microsoft's purpose-built service for transparent NVA insertion on **public/North-South** paths (bump-in-the-wire, no UDR management). Prefer it over deep NS chains when the NVA vendor supports GWLB.
 2. Every chain hop adds latency, an ILB, and an operational failure domain. If two groups run the **same** vendor/function, merge them into one group (scale instances instead).
@@ -1492,6 +1549,23 @@ Per the [HA-NVA guide](https://learn.microsoft.com/azure/architecture/networking
 ### 20.4 Standalone groups (explicit-proxy pattern)
 
 A group may be marked **standalone**: it keeps its name, instances/VMSS, ladder VIP and subnet capacity, but it is **excluded from the chain** — no UDR ever points at it. This models appliances that clients address directly, the classic case being an **explicit forward proxy** (browsers/PAC files target the proxy VIP on its port; the proxy then egresses through the tier chain or its own public IP per its configuration). Rules: at least **one chained group per tier** must remain (the entry); standalone groups don't shift Azure Firewall chain slots; capacity math counts them normally.
+
+### 20.5 Chain-segment route tables (v5.2 — normative)
+
+For a tier with chained elements `E1 … En` (NVA groups and, optionally, one Azure Firewall slot — §21):
+
+| Subnet | Route table | Routes | BGP |
+|---|---|---|---|
+| `Subnet-NS-Internal` (E1, North-South) | `RT-NS-Internal` | `0.0.0.0/0 → hop(E2)` — or **no routes** when n = 1 | ❌ |
+| `Subnet-NS-Internal-i` (mid segments) | `RT-NS-Internal-i` | `0.0.0.0/0 → hop(E[i+1])` | ❌ |
+| `Subnet-NS-Internal-n` (last) | `RT-NS-Internal-n` | *(empty — egress via external NICs)* | ❌ |
+| `Subnet-EW-Internal` (E1 client side, East-West) | `RT-EW-Internal` | unchanged v5.0 anchor: `To-Spokes (VN)`, `To-Hub (VN)` | ✅ |
+| `Subnet-EW-Forward` (E1 forward side) | `RT-EW-Forward` | lateral set → `hop(E2)`: one exact route per spoke + Shared `/19` + Management `/19` + Hub-PE `/24` + on-prem | ❌ |
+| `Subnet-EW-Internal-i` (mid segments) | `RT-EW-Internal-i` | lateral set → `hop(E[i+1])` | ❌ |
+| `Subnet-EW-Internal-n` (last) | `RT-EW-Internal-n` | `To-Spokes (VN)`, `To-Hub (VN)` — delivers via peering | ✅ |
+| `AzureFirewallSubnet` (firewall slot, non-last) | `RT-AzureFirewallSubnet` | NS chain: `0.0.0.0/0 → hop(next)`; EW/single chain: lateral set (+ `0.0.0.0/0` on the single tier) → `hop(next)` | ❌ |
+
+Design rationale, mirrored from the F2 analysis: only group 1 both **forwards** spoke-destined traffic (to E2) and **delivers** toward spoke clients (returns) — those two intents collide on one subnet, hence the dedicated forward subnet on the EW/single tier. Mid segments never deliver to clients; the last segment never forwards — both are single-subnet. Returns between segments target NVA NIC addresses (hub-internal) and ride system routes plus NSG flow state; returns to workloads ride the spoke RTs' `To-NVA-Internal-Direct` exemptions (§7.1).
 
 ---
 
@@ -1506,7 +1580,7 @@ The v5.0 deviation register kept `AzureFirewallSubnet` as a reserved "exit ramp"
 | **Chained on the single tier** | Everything → AzFW → `RT-AzureFirewallSubnet` (0/0 + spokes + shared + mgmt) → `ILB-FW-Outbound` | As N-S row |
 | **Azure Firewall only** | v5.0 native exit ramp executed: firewall takes both roles | `255.255.255.255/32` (always-SNAT) for spoke↔spoke (§6.5) |
 
-**Chain position**: the firewall may occupy **any slot** in the tier's group chain (1 = entry … N+1 = last). Workload route tables always target chain slot 1, whichever element owns it. Mid-chain: `RT-AzureFirewallSubnet` forwards to the next group's VIP, and the preceding group's NVAs forward to the firewall's private IP (appliance config). Last slot: **no** `RT-AzureFirewallSubnet` — the firewall egresses natively (Internet: SNAT to its public IP; East-West: VNet system routes).
+**Chain position**: the firewall may occupy **any slot** in the tier's group chain (1 = entry … N+1 = last). Workload route tables always target chain slot 1, whichever element owns it. **v5.2 (F2)**: every hand-off is a fabric-routed per-subnet UDR — mid-chain, `RT-AzureFirewallSubnet` forwards to the next element's hop, and the **preceding group's segment route table** (§20.5) steers to the firewall's private IP (never appliance OS next hops, which Azure does not honor across a shared subnet). Last slot: **no** `RT-AzureFirewallSubnet` — the firewall egresses natively (Internet: SNAT to its public IP; East-West: VNet system/peering routes), and the preceding segment's RT targets the firewall IP.
 
 Rules carried over: only **one** `AzureFirewallSubnet` per VNet; `AzureFirewallManagementSubnet` keeps Azure-managed routing (no UDR); `RT-AzureFirewallSubnet` runs with BGP propagation **disabled**; the NVA tier's internal NSG gains `AllowFromAzureFirewall` (source = the /26).
 
@@ -1570,7 +1644,9 @@ All selectable values live in `web/config.js` (`AZIP_CONFIG`): Azure regions, en
 | Static NVA NICs per tier subnet | **96** (`.4–.99`) | new — beyond this, use VMSS |
 | Chained groups per tier | **155** (VIP ladder `.100–.254`) | new — practical designs: ≤ 20 |
 | Tier subnet total (statics + VIPs + VMSS max) | **251** | new — exact check per /24 |
-| Static mgmt NICs (all tiers) | **251** (`Subnet-NVA-Management` /24) | new — 2 × 96 always fits |
+| Static mgmt NICs (all tiers) | **251** (`Subnet-NVA-Management` /24) | unchanged |
+| Chain-segment subnets per tier | free /24s in the Connectivity `/19` (≈ 23 in the reference layout) | **v5.2** — each chained group ≥ 2 consumes one /24 (+1 forward subnet for EW/single); section-exhaustion check errs |
+| UDRs per route table | **400** default / **1,000** AVNM-managed | **v5.2 (F1)** — per-spoke exact routes add 1 route/spoke to every hub-side steering table; tool warns > 400, errs > 1,000 |
 
 ---
 

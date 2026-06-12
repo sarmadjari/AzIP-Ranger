@@ -1,9 +1,9 @@
-# Azure Landing Zone Network Design Guide v1.0
+# Azure Landing Zone Network Design Guide v1.1
 
 ## Document Control
-- Version: v1.0
+- Version: v1.1 — adds the route-specificity rule (deep-scan fix F1) and chain-mechanism guidance (F2); see the IP Plan v5.2 §19.7 changelog
 - Status: Final Design Guide
-- Date: 2026-06-11
+- Date: 2026-06-12
 - Audience: Cloud platform architects, network engineers, security architects
 - Scope: Azure Landing Zone networking design with focus on hub/spoke IP ranges, route tables, and NSGs
 
@@ -129,12 +129,17 @@ Define routes by traffic class, not by ad-hoc prefixes:
 ### 8.2 Baseline Route Tables
 - RT-Spoke-Workloads:
   - 0.0.0.0/0 -> Hub security egress next hop (firewall or NVA ILB)
+  - Hub VNet prefixes (EXACT match per declared prefix) -> Hub east-west next hop
   - On-prem supernet(s) -> Hub east-west/connected routing next hop
-  - Optional spoke-summary prefixes -> Hub inspection next hop
-- RT-Platform-Workloads:
-  - Similar to spokes, with explicit platform service exceptions where needed
-- RT-GatewaySubnet:
+- RT-Platform-Workloads and RT-GatewaySubnet:
+  - One route PER SPOKE with the spoke VNet's exact prefix -> Hub inspection next hop
   - Only where explicitly required and validated; avoid unnecessary custom routes
+
+### 8.2.1 Route-specificity rule (v1.1 — mandatory)
+Azure selects routes by longest-prefix-match across ALL route sources first; the User > BGP > System priority applies only between routes with the identical prefix. VNet peering injects one system route per remote VNet address-space prefix. Therefore a UDR that must override reachability to a peered VNet MUST use a prefix exactly equal to (or more specific than) the peered VNet's prefix — summary routes (e.g., a /14 covering all spokes, or a /16 covering a hub that declares /19s) silently lose and traffic bypasses inspection. Budget UDRs accordingly: 400 per route table by default, 1,000 with AVNM-managed route tables. Reference: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing
+
+### 8.2.2 NVA chaining rule (v1.1)
+Azure forwards on destination IP against the subnet's effective routes; guest-OS next hops toward another appliance in the same subnet are not honored. Chain multiple inline appliance groups only via (a) per-group subnets with per-subnet UDR cascades, (b) Gateway Load Balancer for public/North-South insertion, or (c) vendor overlay tunnels — never via same-subnet OS routing. Keep chains at 2-3 elements.
 
 ### 8.3 BGP Propagation Rules
 1. Use BGP propagation carefully where gateway-learned routes are desired.
@@ -248,6 +253,8 @@ Validate these limits during design and quarterly review:
 5. Never mix Corp and Online traffic domains without explicit controls.
 6. Always reserve future space before it is urgently needed.
 7. Always validate effective routes and NSG behavior after every network change.
+8. Never expect a summary UDR to override a more-specific peering system route — steering routes must match the peered VNet prefix exactly (see 8.2.1).
+9. Never design NVA-to-NVA forwarding inside one subnet — Azure routes by destination via effective routes only (see 8.2.2).
 
 ## 17. Final Recommendation
 For most enterprises starting or standardizing landing zones:
