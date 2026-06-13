@@ -7,7 +7,7 @@
      value = what goes into generated names / calculations
 
    Spoke sizes also carry `prefix` (the CIDR size). S/M/L map to
-   the v5.0 reference pools; any other prefix works in Auto mode.
+   the reference pools; any other prefix works in Auto mode.
    ═══════════════════════════════════════════════════════════════ */
 (function (root) {
   "use strict";
@@ -55,7 +55,7 @@
       { name: "DR",          value: "dr" },
     ],
 
-    /* Spoke VNet T-shirt sizes, S/M/L use the v5.0 reference pools;
+    /* Spoke VNet T-shirt sizes, S/M/L use the reference pools;
        additional prefixes are allocated in Auto (right-size) mode    */
     spokeSizes: [
       { name: "S /24, 256 IPs",   value: "S", prefix: 24 },

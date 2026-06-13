@@ -24,6 +24,22 @@
   };
   const VM_MAX = Math.max(...(CFG.nvaVmCounts && CFG.nvaVmCounts.length ? CFG.nvaVmCounts : [3]));
 
+  /* version + links — single source of truth is js/version.js */
+  const V = window.LZ_VERSION || {
+    app: "", ipPlan: "", designGuide: "", badge: "",
+    repoUrl: "https://github.com/sarmadjari/AzIP-Ranger",
+    siteUrl: "https://sarmadjari.github.io/AzIP-Ranger/",
+  };
+  function applyVersion() {
+    const badge = document.querySelector("#ver-badge");
+    if (badge) {
+      badge.textContent = V.badge;
+      badge.title = `Engine v${V.app} · IP Plan v${V.ipPlan} · Network Design Guide v${V.designGuide}. ` +
+        `If this badge looks stale, your browser is serving a cached build — hard-refresh (Ctrl/Cmd+Shift+R).`;
+    }
+    document.querySelectorAll("[data-repo-link]").forEach(a => a.setAttribute("href", V.repoUrl));
+  }
+
   /* ───────────────────────── helpers ────────────────────────── */
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -488,7 +504,7 @@
       statCard("Hybrid", `<small>${esc(s.hybrid)}</small>`, `${s.onpremCount} on-prem prefix${s.onpremCount === 1 ? "" : "es"}`) +
       statCard("Hub VNet", plan.hub.prefixes.length ? `${fmt(plan.hub.declared)}<small> addrs</small>` : "-",
         `<code>${esc(plan.hub.name)}</code>` + (plan.hub.prefixes.length > 1 ? ` · 3 × /19` : "")) +
-      statCard("Spokes", String(s.totalSpokes), `region <code>${esc(s.region)}</code> · ${esc(s.mode === "reference" ? "v5.0 layout" : "auto right-sized")}`, true);
+      statCard("Spokes", String(s.totalSpokes), `region <code>${esc(s.region)}</code> · ${esc(s.mode === "reference" ? `v${V.ipPlan} layout` : "auto right-sized")}`, true);
   }
 
   function tbl(headers, rowsHtml) {
@@ -881,7 +897,7 @@
     diagramExpanded = false;
     writeInputs();
     recompute();
-    toast("Reset to v5.0 reference defaults");
+    toast(`Reset to v${V.ipPlan} reference defaults`);
   });
 
   /* ───────────────────────── tabs ───────────────────────────── */
@@ -937,6 +953,7 @@
   }
   populateConfigLists();
   initTheme();
+  applyVersion();
   try {
     const saved = localStorage.getItem(LS_STATE);
     if (saved) {

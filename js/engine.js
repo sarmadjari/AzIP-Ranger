@@ -29,11 +29,11 @@
    ═══════════════════════════════════════════════════════════════ */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory(require("./cidr.js"));
+    module.exports = factory(require("./cidr.js"), require("./version.js"));
   } else {
-    root.LZ_ENGINE = factory(root.LZ_CIDR);
+    root.LZ_ENGINE = factory(root.LZ_CIDR, root.LZ_VERSION);
   }
-}(typeof self !== "undefined" ? self : this, function (C) {
+}(typeof self !== "undefined" ? self : this, function (C, V) {
   "use strict";
 
   const route = (name, prefix, type, nextHop) => ({ name, prefix, type, nextHop: nextHop || "-" });
@@ -182,7 +182,7 @@
         "CAF requires RFC 1918 space (10/8, 172.16/12, 192.168/16) unless your organization owns this public range (Section 2.2).");
     }
     if (master.prefix > 22) {
-      err("Supernet too small", `/${master.prefix} leaves no room for a hub plus spokes. Use /22 or larger (the v5.0 reference uses /12).`);
+      err("Supernet too small", `/${master.prefix} leaves no room for a hub plus spokes. Use /22 or larger (the v${V.ipPlan} reference uses /12).`);
       plan.ok = false; return plan;
     }
 
@@ -230,7 +230,7 @@
     let mode = state.azure.mode;
     if (mode === "reference" && master.prefix > 13) {
       warn("Reference layout needs ≥ /13",
-        `The v5.0 template allocates a /13 per region; your supernet is /${master.prefix}. Switched to Auto right-size.`);
+        `The v${V.ipPlan} template allocates a /13 per region; your supernet is /${master.prefix}. Switched to Auto right-size.`);
       mode = "auto";
     }
     plan.mode = mode;
@@ -711,7 +711,7 @@
       const custom = spokesIn.filter(s => ![20, 22, 24].includes(SIZE[s.size].prefix));
       if (custom.length) {
         err("Custom spoke sizes need Auto mode",
-          `${custom.map(s => s.vnetName).join(", ")}: the v5.0 reference pools only hold /24, /22 and /20 slots. Switch the layout mode to Auto right-size for custom prefixes.`);
+          `${custom.map(s => s.vnetName).join(", ")}: the v${V.ipPlan} reference pools only hold /24, /22 and /20 slots. Switch the layout mode to Auto right-size for custom prefixes.`);
       }
       const mediums = spokesIn.filter(s => SIZE[s.size].prefix === 22);
       const larges = spokesIn.filter(s => SIZE[s.size].prefix === 20);
@@ -789,7 +789,7 @@
       if (mode === "reference") {
         const r2Base = regionBase + C.sizeOf(13);
         if (r2Base + C.sizeOf(13) <= masterEnd) plan.region2 = { cidr: C.cidr(r2Base, 13), size: C.sizeOf(13) };
-        else info("No room for Region 2", `A second /13 does not fit inside ${master.normalized}, the v5.0 pattern consumes a full /12 for two regions.`);
+        else info("No room for Region 2", `A second /13 does not fit inside ${master.normalized}, the v${V.ipPlan} pattern consumes a full /12 for two regions.`);
       } else {
         const span = spokeAreaEnd - master.base;
         const cover = C.coveringPrefix(master.base, spokeAreaEnd);

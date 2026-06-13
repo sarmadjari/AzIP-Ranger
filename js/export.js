@@ -6,15 +6,15 @@
    ═══════════════════════════════════════════════════════════════ */
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory(require("./cidr.js"));
+    module.exports = factory(require("./cidr.js"), require("./version.js"));
   } else {
-    root.LZ_EXPORT = factory(root.LZ_CIDR);
+    root.LZ_EXPORT = factory(root.LZ_CIDR, root.LZ_VERSION);
   }
-}(typeof self !== "undefined" ? self : this, function (C) {
+}(typeof self !== "undefined" ? self : this, function (C, V) {
   "use strict";
 
   const fmt = C.fmt;
-  const DOC_BASIS = "based on IP Plan v5.2 + Network Design Guide v1.1";
+  const DOC_BASIS = V.docBasis;
 
   function mdTable(headers, rows) {
     return `| ${headers.join(" | ")} |\n|${headers.map(() => "---").join("|")}|\n` +
@@ -30,7 +30,7 @@
     lines.push(mdTable(["Setting", "Value"], [
       ["Azure supernet", state.azure.cidr],
       ["Region (naming)", s.region],
-      ["Layout mode", s.mode === "reference" ? "v5.0 reference (/13 regional template)" : "Auto right-size"],
+      ["Layout mode", s.mode === "reference" ? `v${V.ipPlan} reference (/13 regional template)` : "Auto right-size"],
       ["Architecture", s.arch],
       ["Hybrid connectivity", s.hybrid],
       ["On-prem prefixes", plan.onprem.map(o => `${o.name}: ${o.cidr}`).join("; ") || "-"],
