@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   cidr.js — pure IPv4/CIDR math (no DOM). Used by engine.js and
+   cidr.js, pure IPv4/CIDR math (no DOM). Used by engine.js and
    by the Node unit tests. All addresses handled as unsigned ints.
    ═══════════════════════════════════════════════════════════════ */
 (function (root, factory) {
@@ -91,7 +91,7 @@
     { base: ipToInt("192.168.0.0"), prefix: 16 },
   ];
 
-  /** Ranges that must never appear in a private design (§2.2 / guide §6.2). */
+  /** Ranges that must never appear in a private design (Section 2.2 / guide Section 6.2). */
   const FORBIDDEN = [
     { base: ipToInt("224.0.0.0"), prefix: 4, why: "multicast (224.0.0.0/4)" },
     { base: ipToInt("255.255.255.255"), prefix: 32, why: "broadcast (255.255.255.255/32)" },
@@ -111,7 +111,7 @@
 
   /**
    * Sequential aligned allocator.
-   * items: [{ key, prefix, ... }] — allocated in order, each aligned to its own size.
+   * items: [{ key, prefix, ... }], allocated in order, each aligned to its own size.
    * Returns { items: [{...item, base, cidr}], end } (end = first free address).
    */
   function allocate(start, items) {

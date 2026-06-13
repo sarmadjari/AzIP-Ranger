@@ -1,4 +1,4 @@
-# AzIP-Ranger — Azure Landing Zone Network Designer
+# AzIP-Ranger: Azure Landing Zone Network Designer
 
 > **Interactive Hub & Spoke IP Planning, Routing, and Security Catalogs**
 >
@@ -55,8 +55,9 @@ You can customize standard regions, environments, spoke sizes, and VM counts by 
 
 ## 📖 Architecture Documentation
 For details on the specifications and constraints driving the engine:
-* [Azure Landing Zone IP Plan](docs/azure-landing-zone-ip-plan.md) — Reference architecture
-* [Network Design Guide](docs/azure-landing-zone-network-design-guide.md) — Landing zone connectivity guidelines.
+* [Why AzIP-Ranger](docs/why-azip-ranger.md), what the project is good at and what it helps with (start here)
+* [Azure Landing Zone IP Plan](docs/azure-landing-zone-ip-plan.md), Reference architecture (NVA arm concept in Section 6.1.1)
+* [Network Design Guide](docs/azure-landing-zone-network-design-guide.md), Landing zone connectivity guidelines.
 
 ## ⚖️ License & Disclaimer
 

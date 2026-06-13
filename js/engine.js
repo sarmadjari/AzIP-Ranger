@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
-   AzIP-Ranger · engine.js — turns a configuration state into a
+   AzIP-Ranger · engine.js, turns a configuration state into a
    complete landing zone design: master allocation, hub VNet &
    subnets, spoke pools, NVA tiers (VM or VMSS), ILB VIPs / next
-   hops, route tables, NSGs, peering, DNS, capacity — with CAF
+   hops, route tables, NSGs, peering, DNS, capacity, with CAF
    naming built from <spoke>-<env>-<region>.
 
    Encodes the rules of:
@@ -13,16 +13,16 @@
    • "Azure Landing Zone Network Design Guide v1.0"
 
    Inspection architectures:
-     dual   — NS NVA tier + EW NVA tier (v5.0 reference)
+     dual, NS NVA tier + EW NVA tier (v5.0 reference)
               + optional Azure Firewall CHAINED into one tier
-     single — one NVA tier inspects N-S and E-W
-     mixed  — NVA takes one tier, Azure Firewall takes the other
-     azfw   — Azure Firewall only · none — no central inspection
+     single, one NVA tier inspects N-S and E-W
+     mixed, NVA takes one tier, Azure Firewall takes the other
+     azfw, Azure Firewall only · none, no central inspection
 
    Tier deployment: { kind:"vm", count:1..8 } or { kind:"vmss",
-   min, max } — VMSS is always behind the ILB (dynamic NIC IPs).
+   min, max }, VMSS is always behind the ILB (dynamic NIC IPs).
 
-   Spokes: free-form list [{ name, env, size }] — size S=/24,
+   Spokes: free-form list [{ name, env, size }], size S=/24,
    M=/22, L=/20. Reference mode allocates by SIZE into the doc's
    pools (M/L → 10.4.0.0/15 two-pointer, S → 10.6/16 then 10.7/16);
    auto mode creates one right-sized pool per environment.
@@ -36,7 +36,7 @@
 }(typeof self !== "undefined" ? self : this, function (C) {
   "use strict";
 
-  const route = (name, prefix, type, nextHop) => ({ name, prefix, type, nextHop: nextHop || "—" });
+  const route = (name, prefix, type, nextHop) => ({ name, prefix, type, nextHop: nextHop || "-" });
   const rule = (prio, name, dir, src, dst, port, proto, action) =>
     ({ prio, name, dir, src, dst, port, proto, action });
   const DENY_IN = rule(4096, "DenyAllInbound", "Inbound", "Any", "Any", "Any", "Any", "Deny");
@@ -54,7 +54,7 @@
     return v || dflt;
   }
 
-  /* spoke sizes — overridable via config.js (AZIP_CONFIG.spokeSizes) */
+  /* spoke sizes, overridable via config.js (AZIP_CONFIG.spokeSizes) */
   const CFG = (typeof self !== "undefined" && self.AZIP_CONFIG) ||
               (typeof globalThis !== "undefined" && globalThis.AZIP_CONFIG) || null;
   const SIZE = {};
@@ -173,13 +173,13 @@
     }
     if (!master.exact) {
       info("Supernet normalized",
-        `${state.azure.cidr.trim()} is not aligned for /${master.prefix} — using ${master.normalized}.`);
+        `${state.azure.cidr.trim()} is not aligned for /${master.prefix}, using ${master.normalized}.`);
     }
     const fb = C.forbiddenHit(master.base, master.prefix);
-    if (fb) { err("Forbidden range", `Azure supernet overlaps ${fb} — never usable in a private design (§2.2).`); plan.ok = false; return plan; }
+    if (fb) { err("Forbidden range", `Azure supernet overlaps ${fb}, never usable in a private design (Section 2.2).`); plan.ok = false; return plan; }
     if (!C.isRfc1918(master.base, master.prefix)) {
       warn("Non-RFC 1918 supernet",
-        "CAF requires RFC 1918 space (10/8, 172.16/12, 192.168/16) unless your organization owns this public range (§2.2).");
+        "CAF requires RFC 1918 space (10/8, 172.16/12, 192.168/16) unless your organization owns this public range (Section 2.2).");
     }
     if (master.prefix > 22) {
       err("Supernet too small", `/${master.prefix} leaves no room for a hub plus spokes. Use /22 or larger (the v5.0 reference uses /12).`);
@@ -194,10 +194,10 @@
       const p = C.parseCidr(o.cidr);
       if (!p.ok) { err(`On-prem "${name}" invalid`, p.error); return; }
       const f = C.forbiddenHit(p.base, p.prefix);
-      if (f) { err(`On-prem "${name}" forbidden`, `Overlaps ${f} (§2.2).`); return; }
+      if (f) { err(`On-prem "${name}" forbidden`, `Overlaps ${f} (Section 2.2).`); return; }
       if (C.overlaps(master.base, master.prefix, p.base, p.prefix)) {
         err(`On-prem "${name}" overlaps Azure`,
-          `${p.normalized} intersects the Azure supernet ${master.normalized}. CAF overlap gate fails — renumber, or NAT that site on the VPN gateway (§2.2).`);
+          `${p.normalized} intersects the Azure supernet ${master.normalized}. CAF overlap gate fails, renumber, or NAT that site on the VPN gateway (Section 2.2).`);
         return;
       }
       if (!C.isRfc1918(p.base, p.prefix)) {
@@ -209,7 +209,7 @@
       for (let j = i + 1; j < onprem.length; j++) {
         if (C.overlaps(onprem[i].base, onprem[i].prefix, onprem[j].base, onprem[j].prefix)) {
           warn("On-prem sites overlap",
-            `"${onprem[i].name}" (${onprem[i].cidr}) and "${onprem[j].name}" (${onprem[j].cidr}) intersect — routes will be ambiguous unless they are supernet/subnet by design.`);
+            `"${onprem[i].name}" (${onprem[i].cidr}) and "${onprem[j].name}" (${onprem[j].cidr}) intersect, routes will be ambiguous unless they are supernet/subnet by design.`);
         }
       }
     }
@@ -219,7 +219,7 @@
     const hybrid = conn.expressRoute || conn.vpn;
     if (onprem.length && !hybrid) {
       warn("On-prem defined but no gateway",
-        "ExpressRoute and VPN are both disabled — on-prem prefixes are included in routes/NSGs but unreachable until a gateway exists.");
+        "ExpressRoute and VPN are both disabled, on-prem prefixes are included in routes/NSGs but unreachable until a gateway exists.");
     }
     if (!onprem.length && hybrid) {
       info("Gateways without on-prem prefixes",
@@ -280,7 +280,7 @@
 
     /* v5.2 chain model (fabric-routed cascade):
        Azure forwards by destination IP against the subnet's effective
-       routes — a guest-OS next hop pointing at another VIP in the SAME
+       routes, a guest-OS next hop pointing at another VIP in the SAME
        subnet is not honored. Chained groups therefore each get their
        own internal ("In") subnet so per-subnet UDRs can steer segment
        i → i+1 (Microsoft UDR guidance: deploy an NVA in a different
@@ -304,7 +304,7 @@
 
     const cat = [];
     const add = (key, section, name, prefix, purpose, rt, nsg, opts) =>
-      cat.push(Object.assign({ key, section, name, prefix, purpose, rt: rt || "—", nsg: nsg || "—" }, opts));
+      cat.push(Object.assign({ key, section, name, prefix, purpose, rt: rt || "-", nsg: nsg || "-" }, opts));
 
     add("gw",      "conn", "GatewaySubnet",                  26, "VPN / ExpressRoute gateways", "RT-GatewaySubnet", "None (not supported)", { active: wantGw });
     add("rs",      "conn", "RouteServerSubnet",              26, "Azure Route Server",          "None (not supported)", "None (not supported)", { active: wantRS });
@@ -315,33 +315,33 @@
     add("nsint",   "conn", FW_INT,                           24, arch === "single" ? "NVA internal NICs (+ ILB VIP)" : "North-South NVA internal NICs", arch === "single" ? "RT-FW-Internal" : "RT-NS-Internal", arch === "single" ? "NSG-FW-Internal" : "NSG-NS-Internal", { active: wantNSNVA });
     add("ewext",   "conn", "Subnet-EW-External",             24, "East-West NVA external NICs", "RT-EW-External", "NSG-EW-External", { active: wantEWNVA });
     add("ewint",   "conn", "Subnet-EW-Internal",             24, "East-West NVA internal NICs (+ ILB VIP)", "RT-EW-Internal", "NSG-EW-Internal", { active: wantEWNVA });
-    add("rsv",     "conn", "Subnet-Reserved-Hub",            24, "Reserved (future use)",       "—", "—", { active: false, refOnly: true });
+    add("rsv",     "conn", "Subnet-Reserved-Hub",            24, "Reserved (future use)",       "-", "-", { active: false, refOnly: true });
     add("nvam",    "conn", "Subnet-NVA-Management",          24, "NVA management interfaces",   "RT-NVA-Mgmt", "NSG-NVA-Mgmt", { active: isNVA });
-    add("pe",      "conn", "Subnet-PrivateEndpoints-Hub",    24, "Private Endpoints (hub)",     "— (PE return traffic bypasses UDRs)", "NSG-PrivateEndpoints", { active: svc.pe });
+    add("pe",      "conn", "Subnet-PrivateEndpoints-Hub",    24, "Private Endpoints (hub)",     ", (PE return traffic bypasses UDRs)", "NSG-PrivateEndpoints", { active: svc.pe });
 
-    /* v5.2 — chain-segment subnets (appended AFTER the v5.0 anchors so
+    /* v5.2, chain-segment subnets (appended AFTER the v5.0 anchors so
        every existing CIDR is preserved; they only exist when a tier
        actually has ≥ 2 chained groups).                              */
     const nsIntName = (i) => `${NS_PFX}-Internal-${i}`;
     const nsIntNsg  = arch === "single" ? "NSG-FW-Internal" : "NSG-NS-Internal";
     for (let i = 2; i <= nsChainN; i++) {
       add(`nsint${i}`, "conn", nsIntName(i), 24,
-        `${arch === "single" ? "Inspection" : "North-South"} chain group ${i} — internal NICs (+ VIP .100)`,
+        `${arch === "single" ? "Inspection" : "North-South"} chain group ${i}, internal NICs (+ VIP .100)`,
         `RT-${nsIntName(i).replace("Subnet-", "")}`, nsIntNsg, { active: wantNSNVA });
     }
     for (let i = 2; i <= ewChainN; i++) {
       add(`ewint${i}`, "conn", `Subnet-EW-Internal-${i}`, 24,
-        `East-West chain group ${i} — internal NICs (+ VIP .100)`,
+        `East-West chain group ${i}, internal NICs (+ VIP .100)`,
         `RT-EW-Internal-${i}`, "NSG-EW-Internal", { active: wantEWNVA });
     }
     if (ewChainN >= 2) {
       add("ewintfwd", "conn", "Subnet-EW-Forward", 24,
-        "East-West chain — group 1 forward/egress NICs (steers inspected traffic to hop 2)",
+        "East-West chain, group 1 forward/egress NICs (steers inspected traffic to hop 2)",
         "RT-EW-Forward", "NSG-EW-Internal", { active: wantEWNVA });
     }
     if (fwChainN >= 2) {
       add("nsintfwd", "conn", "Subnet-FW-Forward", 24,
-        "Inspection chain — group 1 forward NICs (steers inspected traffic to hop 2)",
+        "Inspection chain, group 1 forward NICs (steers inspected traffic to hop 2)",
         "RT-FW-Forward", "NSG-FW-Internal", { active: wantNSNVA });
     }
 
@@ -375,7 +375,7 @@
         res.items.forEach(p => { S[p.key] = p; });
         if (res.end > sBase + 8192) {
           err(`${sd.name} section /19 exhausted`,
-            `The ${sd.name} section needs ${C.fmt(res.end - sBase)} addresses but ${sd.cidr} holds 8,192 — too many chain-segment subnets. Reduce chained NVA groups (each needs a dedicated /24, §20).`);
+            `The ${sd.name} section needs ${C.fmt(res.end - sBase)} addresses but ${sd.cidr} holds 8,192, too many chain-segment subnets. Reduce chained NVA groups (each needs a dedicated /24, Section 20).`);
         }
         hub.sections.push({ name: sd.name, cidr: sd.cidr });
         hub.prefixes.push(sd.cidr);
@@ -384,7 +384,7 @@
     } else {
       const items = cat.filter(c => c.active).map(c => ({ key: c.key, prefix: c.prefix }));
       if (!items.length) {
-        info("Empty hub", "No hub components selected — only spoke pools will be planned.");
+        info("Empty hub", "No hub components selected, only spoke pools will be planned.");
       }
       const res = C.allocate(regionBase, items);
       res.items.forEach(p => { S[p.key] = p; });
@@ -430,16 +430,16 @@
     /* a tier = ordered chain of NVA groups. v5.2: each CHAINED group
        i ≥ 2 lives in its own dedicated internal subnet, so per-subnet
        UDRs steer segment i → i+1 at the Azure fabric layer (Azure
-       routes by destination IP via effective routes — a guest-OS next
+       routes by destination IP via effective routes, a guest-OS next
        hop pointing at a VIP in the same subnet is NOT honored, see
-       §20). Group 1 keeps the v5.0 anchors (Subnet-*-Internal, VIP
+       Section 20). Group 1 keeps the v5.0 anchors (Subnet-*-Internal, VIP
        .100). Standalone groups stay in group 1's subnet on the VIP
        ladder (.101+). Every group SNATs to the NIC it forwards from,
-       so each chain segment stays flow-symmetric (§6.7).             */
+       so each chain segment stays flow-symmetric (Section 6.7).             */
     function buildTier(key, label, ilbDocName, extKey, intKey, intName, tierCfg, purpose) {
       const ext = S[extKey], internal = S[intKey];
       if (!ext || !internal) return null;
-      /* per-subnet address law (v5.2 §20.2): statics .4–.99 (96 max),
+      /* per-subnet address law (v5.2 Section 20.2): statics .4–.99 (96 max),
          VIP .100 (+ ladder .101+ for standalones in the base subnet),
          VMSS NICs dynamic from the remainder                          */
       const nicOff = {};                  // per-internal-subnet NIC cursor
@@ -477,13 +477,13 @@
         const vipOff = own === internal ? 100 + (ladder++) : 100;
         if (vipOff > 254) {
           err(`${label} tier VIP ladder exhausted`,
-            `Group ${gi + 1} ("${display}") would need VIP .${vipOff} in ${intName}; the base subnet ladder holds at most 155 co-resident groups (.100–.254). Remove standalone groups (§20.2).`);
+            `Group ${gi + 1} ("${display}") would need VIP .${vipOff} in ${intName}; the base subnet ladder holds at most 155 co-resident groups (.100–.254). Remove standalone groups (Section 20.2).`);
           return;
         }
         let nOff = nextNic(ownKey);
         if (!vmss && nOff + cfg.count - 1 >= 100) {
           err(`${label} tier static NIC range exhausted (${ownName})`,
-            `"${display}" needs static NICs .${nOff}–.${nOff + cfg.count - 1}, but statics must stay below .100 (the VIP) — max 96 static NICs per subnet. Convert the group to VMSS (dynamic NICs) (§20.2).`);
+            `"${display}" needs static NICs .${nOff}–.${nOff + cfg.count - 1}, but statics must stay below .100 (the VIP), max 96 static NICs per subnet. Convert the group to VMSS (dynamic NICs) (Section 20.2).`);
           return;
         }
         const vip = C.intToIp(own.base + vipOff);
@@ -514,15 +514,15 @@
                       extSubnet: extSub.cidr, extName: extSubName });
         if (ha) ilbs.push({
           name: ilbName, vip, subnet: ownName,
-          pool: vmss ? `vmss-${group} (Flex) — autoscale ${cfg.min}–${cfg.max} instances, dynamic NIC IPs` : instances.map(x => x.int).join(", "),
-          purpose: cfg.standalone ? `${label} standalone — direct access (e.g., explicit proxy), not in the chain`
-            : chainIdx === 1 ? purpose : `${label} chain hop ${chainIdx} — receives via its subnet's UDR cascade`,
+          pool: vmss ? `vmss-${group} (Flex), autoscale ${cfg.min}–${cfg.max} instances, dynamic NIC IPs` : instances.map(x => x.int).join(", "),
+          purpose: cfg.standalone ? `${label} standalone, direct access (e.g., explicit proxy), not in the chain`
+            : chainIdx === 1 ? purpose : `${label} chain hop ${chainIdx}, receives via its subnet's UDR cascade`,
         });
       });
       const chainedG = groups.filter(g => !g.standalone);
       if (!chainedG.length && groups.length) {
         err(`${label} tier has no chained group`,
-          `All ${groups.length} groups are standalone — at least one group must be in the chain to receive routed traffic (0.0.0.0/0 / east-west). Standalone groups (e.g., explicit proxies) are reached directly by clients, never via UDR.`);
+          `All ${groups.length} groups are standalone, at least one group must be in the chain to receive routed traffic (0.0.0.0/0 / east-west). Standalone groups (e.g., explicit proxies) are reached directly by clients, never via UDR.`);
       }
       const g0 = chainedG[0] || groups[0];
       const t = {
@@ -537,13 +537,13 @@
       tiers.push(t);
       if (chainedG.length > 1) {
         const hops = chainedG.map((g, i) => `${i + 1}. ${g.display} (${g.hop.ip} in ${g.intName})`).join(" → ");
-        info(`${label} tier — chained NVA groups (UDR cascade)`,
-          `Traffic order: ${hops} → ${key === "ew" ? "destination (VNet)" : key === "fw" ? "destination / Internet" : "Internet"}. Workload route tables target only the entry hop (${g0.hop.ip}); each segment's OWN subnet route table steers inspected traffic to the next hop at the Azure fabric layer (guest-OS next hops toward a same-subnet VIP are not honored by Azure — §20). Every group SNATs to its forwarding NIC so each segment stays flow-symmetric (§6.7).`);
+        info(`${label} tier, chained NVA groups (UDR cascade)`,
+          `Traffic order: ${hops} → ${key === "ew" ? "destination (VNet)" : key === "fw" ? "destination / Internet" : "Internet"}. Workload route tables target only the entry hop (${g0.hop.ip}); each segment's OWN subnet route table steers inspected traffic to the next hop at the Azure fabric layer (guest-OS next hops toward a same-subnet VIP are not honored by Azure, Section 20). Every group SNATs to its forwarding NIC so each segment stays flow-symmetric (Section 6.7).`);
       }
       const solos = groups.filter(g => g.standalone);
       if (solos.length) {
-        info(`${label} tier — standalone groups`,
-          `${solos.map(g => `${g.display} (${g.hop.ip})`).join(", ")}: not part of the chain — reached directly (e.g., an explicit proxy via client/PAC configuration). No UDR points at them; they keep their VIP and subnet capacity in ${intName}.`);
+        info(`${label} tier, standalone groups`,
+          `${solos.map(g => `${g.display} (${g.hop.ip})`).join(", ")}: not part of the chain, reached directly (e.g., an explicit proxy via client/PAC configuration). No UDR points at them; they keep their VIP and subnet capacity in ${intName}.`);
       }
       return t;
     }
@@ -572,11 +572,11 @@
       tiers.forEach(t => t.instances.forEach(inst => { inst.mgmt = mi <= 254 ? C.intToIp(S.nvam.base + mi) : null; mi++; }));
       if (mi - 4 > 251) {
         err("Subnet-NVA-Management exhausted",
-          `${mi - 4} static management NICs exceed the 251 usable addresses of the /24 (§20.2). Convert groups to VMSS (dynamic mgmt NICs).`);
+          `${mi - 4} static management NICs exceed the 251 usable addresses of the /24 (Section 20.2). Convert groups to VMSS (dynamic mgmt NICs).`);
       }
     }
 
-    // workloads enter the chain at slot 1 — the firewall only becomes the
+    // workloads enter the chain at slot 1, the firewall only becomes the
     // workload-facing hop when it occupies the entry slot
     let egressHop = nsHop, lateralHop = ewHop;
     if (chainPos === 1 && azfwHop) {
@@ -590,7 +590,7 @@
     plan.azfw = azfwDeployed && azfwHop ? {
       ip: azfwHop.ip,
       chain, chainPos: chain ? chainPos : null,
-      role: chain ? `Chained — ${chain === "ns" ? "North-South" : chain === "ew" ? "East-West" : "single tier"}, hop ${chainPos} of ${chainLast}`
+      role: chain ? `Chained, ${chain === "ns" ? "North-South" : chain === "ew" ? "East-West" : "single tier"}, hop ${chainPos} of ${chainLast}`
         : arch === "azfw" ? "N-S + E-W" : (mixedRole === "ns" ? "East-West" : "North-South"),
     } : null;
     plan.nsHop = egressHop; plan.ewHop = lateralHop;
@@ -598,15 +598,15 @@
     const spofGroups = tiers.flatMap(t => t.groups.filter(g => !g.ha).map(g => `${g.display} (${t.label})`));
     if (spofGroups.length) {
       warn(`Single-instance NVA group (${spofGroups.join(", ")})`,
-        "One NVA is a single point of failure for every flow it inspects — routes point at its NIC IP, so failover requires UDR rewrites. Use 2-3 VMs (active-active behind a Standard ILB with HA ports) or a VMSS for autoscale.");
+        "One NVA is a single point of failure for every flow it inspects, routes point at its NIC IP, so failover requires UDR rewrites. Use 2-3 VMs (active-active behind a Standard ILB with HA ports) or a VMSS for autoscale.");
     }
     const vmssGroups = tiers.flatMap(t => t.groups.filter(g => g.vmss).map(g => ({ t, g })));
     if (vmssGroups.length) {
       info("VMSS NVA groups",
-        `${vmssGroups.map(x => `${x.g.display} in ${x.t.label} (${x.g.scale.min}–${x.g.scale.max})`).join(", ")}: instance NICs are allocated dynamically from the tier subnets — routing anchors on the static ILB VIP. The vendor image must join the ILB backend pool on scale-out and SNAT via its internal NIC; validate flow symmetry after every scale event (§6.3/§6.7).`);
+        `${vmssGroups.map(x => `${x.g.display} in ${x.t.label} (${x.g.scale.min}–${x.g.scale.max})`).join(", ")}: instance NICs are allocated dynamically from the tier subnets, routing anchors on the static ILB VIP. The vendor image must join the ILB backend pool on scale-out and SNAT via its internal NIC; validate flow symmetry after every scale event (Section 6.3/Section 6.7).`);
       vmssGroups.forEach(x => {
         if (x.g.scale.min < 2) warn(`VMSS floor of ${x.g.scale.min} (${x.g.display})`,
-          "An autoscale minimum below 2 means a single instance during quiet periods or zone failure — effectively a periodic SPOF. Set min ≥ 2 for inspection tiers.");
+          "An autoscale minimum below 2 means a single instance during quiet periods or zone failure, effectively a periodic SPOF. Set min ≥ 2 for inspection tiers.");
       });
     }
     /** ordered chain elements for a tier, with the Azure Firewall
@@ -627,25 +627,25 @@
       const seq = chainElems(chain === "fw" ? "fw" : chain);
       const order = seq.map((s2, i) => `${i + 1}. ${s2.label} (${s2.hop.ip})`).join(" → ");
       const exit = chain === "ew" ? "destination (VNet)" : chain === "fw" ? "destination / Internet" : "Internet";
-      info(`Chained inspection — Azure Firewall at hop ${chainPos} of ${chainLast}`,
+      info(`Chained inspection, Azure Firewall at hop ${chainPos} of ${chainLast}`,
         `Order: ${order} → ${exit}. Workload route tables target only hop 1; each segment's subnet route table (RT-AzureFirewallSubnet for the firewall, the chain-segment RTs for NVA groups) steers traffic to the NEXT hop at the fabric layer, and every segment SNATs so returns retrace the chain. ` +
-        (chain === "ew" ? "Keep the firewall's default no-SNAT for RFC 1918 so downstream NVAs see true sources; the tier's NVA SNAT preserves return symmetry via the spoke direct-return routes. Note returns intentionally bypass the firewall (forward-leg policy) — enable always-SNAT (255.255.255.255/32) on the Firewall Policy if full bidirectional firewall visibility is required." :
+        (chain === "ew" ? "Keep the firewall's default no-SNAT for RFC 1918 so downstream NVAs see true sources; the tier's NVA SNAT preserves return symmetry via the spoke direct-return routes. Note returns intentionally bypass the firewall (forward-leg policy), enable always-SNAT (255.255.255.255/32) on the Firewall Policy if full bidirectional firewall visibility is required." :
           chainPos === chainLast ? "As the last hop the firewall egresses natively and SNATs to its public IP." :
           "The firewall SNATs to its private range so its segment's returns retrace it."));
     }
 
-    /* §20.3 — Microsoft-aligned chain-depth guidance */
+    /* Section 20.3, Microsoft-aligned chain-depth guidance */
     ["ns", "ew", "fw"].forEach(k => {
       const n = chainElems(k).length;
       if (n > 3) {
         warn(`${k === "ns" ? "North-South" : k === "ew" ? "East-West" : "Inspection"} chain depth ${n} exceeds the accepted 2–3`,
           "Per the HA-NVA guidance, chains beyond 2–3 elements add latency, an ILB and a failure domain per hop. Merge same-function groups (scale instances, not groups)" +
-          (k !== "ew" ? ", or prefer Gateway Load Balancer for transparent North-South insertion when the vendor supports it (§20.3)." : " (§20.3)."));
+          (k !== "ew" ? ", or prefer Gateway Load Balancer for transparent North-South insertion when the vendor supports it (Section 20.3)." : " (Section 20.3)."));
       }
     });
     if (azfwDeployed && ewEngine === "azfw") {
       info("Azure Firewall east-west SNAT",
-        "By default Azure Firewall does not SNAT RFC 1918 traffic. For the ILB-symmetry-free spoke↔spoke pattern set Private IP ranges = 255.255.255.255/32 (always SNAT) on the Firewall Policy (§6.5).");
+        "By default Azure Firewall does not SNAT RFC 1918 traffic. For the ILB-symmetry-free spoke↔spoke pattern set Private IP ranges = 255.255.255.255/32 (always SNAT) on the Firewall Policy (Section 6.5).");
     }
     if (arch === "mixed") {
       info("Mixed inspection plane",
@@ -653,19 +653,19 @@
     }
     if (arch === "none") {
       warn("No central egress path",
-        "Default outbound access is retired for new VNets (API ≥ 31 Mar 2026): without a firewall/NVA, every spoke needs explicit egress — NAT Gateway per subnet or instance public IPs (§12.6). Spoke↔spoke also requires direct peering per pair (no transit).");
+        "Default outbound access is retired for new VNets (API ≥ 31 Mar 2026): without a firewall/NVA, every spoke needs explicit egress, NAT Gateway per subnet or instance public IPs (Section 12.6). Spoke↔spoke also requires direct peering per pair (no transit).");
     }
     if (wantRS && !isNVA) {
-      info("Route Server without NVAs", "Route Server exists to exchange BGP routes with NVAs — with no NVA tier it usually has no peer.");
+      info("Route Server without NVAs", "Route Server exists to exchange BGP routes with NVAs, with no NVA tier it usually has no peer.");
     }
     if (svc.dns && conn.expressRoute) {
       warn("ExpressRoute FastPath must stay OFF",
-        "DNS Private Resolver inbound resolution from on-prem is incompatible with FastPath (§3.2.1). ErGw2AZ conveniently does not support FastPath; keep it off if you upgrade SKUs.");
+        "DNS Private Resolver inbound resolution from on-prem is incompatible with FastPath (Section 3.2.1). ErGw2AZ conveniently does not support FastPath; keep it off if you upgrade SKUs.");
       info("No wildcard DNS forwarding rules",
-        "Resolver + ER gateway in the same VNet: the forwarding ruleset must contain only explicit domain rules, never a catch-all \".\" rule (§3.2.1).");
+        "Resolver + ER gateway in the same VNet: the forwarding ruleset must contain only explicit domain rules, never a catch-all \".\" rule (Section 3.2.1).");
     }
 
-    /* ════════ 7 · SPOKES — free-form catalog with CAF naming ════════ */
+    /* ════════ 7 · SPOKES, free-form catalog with CAF naming ════════ */
     const spokesIn = normSpokes(state.spokes);
 
     // CAF naming with duplicate handling: vnet-<name>-<env>-<region>[-NNN]
@@ -702,10 +702,10 @@
     if (mode === "reference") {
       /* size-based doc pools (env is naming metadata):
          M+L → 10.4.0.0/15 two-pointer · S → 10.6.0.0/16, overflow 10.7.0.0/16 */
-      const poolML = poolObj("ml", "Medium / Large", regionBase + 4 * 65536, 15, "Medium /22 bottom-up · Large /20 top-down (§4.1.1)");
+      const poolML = poolObj("ml", "Medium / Large", regionBase + 4 * 65536, 15, "Medium /22 bottom-up · Large /20 top-down (Section 4.1.1)");
       const poolS1 = poolObj("s1", "Small", regionBase + 6 * 65536, 16, "Small /24 sequential");
       const poolS2 = poolObj("s2", "Small (overflow)", regionBase + 7 * 65536, 16, "Used when the first Small pool fills");
-      growth = { name: "Reserved — platform growth", cidr: `${C.cidr(regionBase + 65536, 16)} + ${C.cidr(regionBase + 2 * 65536, 15)}`, size: 196608 };
+      growth = { name: "Reserved, platform growth", cidr: `${C.cidr(regionBase + 65536, 16)} + ${C.cidr(regionBase + 2 * 65536, 15)}`, size: 196608 };
       spokeAreaEnd = regionBase + 8 * 65536;
 
       const custom = spokesIn.filter(s => ![20, 22, 24].includes(SIZE[s.size].prefix));
@@ -766,7 +766,7 @@
           const pfx = SIZE[s.size].prefix;
           const b = C.alignUp(bTop - SIZE[s.size].bytes, pfx) === bTop - SIZE[s.size].bytes ? bTop - SIZE[s.size].bytes : Math.floor((bTop - SIZE[s.size].bytes) / SIZE[s.size].bytes) * SIZE[s.size].bytes;
           if (b >= bBase) { pushAlloc(pool, s, b, pfx); bTop = b; }
-          else { err(`Pool "${e}" exhausted`, `${SIZE[s.size].label} spoke ${s.vnetName} does not fit — enable headroom or enlarge the supernet.`); }
+          else { err(`Pool "${e}" exhausted`, `${SIZE[s.size].label} spoke ${s.vnetName} does not fit, enable headroom or enlarge the supernet.`); }
         });
         pools.push(pool);
       });
@@ -789,7 +789,7 @@
       if (mode === "reference") {
         const r2Base = regionBase + C.sizeOf(13);
         if (r2Base + C.sizeOf(13) <= masterEnd) plan.region2 = { cidr: C.cidr(r2Base, 13), size: C.sizeOf(13) };
-        else info("No room for Region 2", `A second /13 does not fit inside ${master.normalized} — the v5.0 pattern consumes a full /12 for two regions.`);
+        else info("No room for Region 2", `A second /13 does not fit inside ${master.normalized}, the v5.0 pattern consumes a full /12 for two regions.`);
       } else {
         const span = spokeAreaEnd - master.base;
         const cover = C.coveringPrefix(master.base, spokeAreaEnd);
@@ -802,7 +802,7 @@
       }
     }
 
-    /* spoke template tiers — instantiated per spoke as snet-/nsg-<tier>-<spoke>-<env>-<region> */
+    /* spoke template tiers, instantiated per spoke as snet-/nsg-<tier>-<spoke>-<env>-<region> */
     plan.templates = {
       std22: [
         { tier: "web", off: 0, prefix: 25, purpose: "Web tier" },
@@ -820,7 +820,7 @@
         { tier: "reserved2", off: 192, prefix: 26, purpose: "Future use", reserved: true },
       ],
       large20: [
-        { tier: "(workload-defined)", off: 0, prefix: 20, purpose: "AKS (Azure CNI), AVS, big data — size subnets from the service's documented IP consumption (§4.1.1)" },
+        { tier: "(workload-defined)", off: 0, prefix: 20, purpose: "AKS (Azure CNI), AVS, big data, size subnets from the service's documented IP consumption (Section 4.1.1)" },
       ],
     };
 
@@ -828,25 +828,25 @@
     const masterRows = [];
     masterRows.push({ name: "Master supernet", cidr: master.normalized, addresses: master.size, kind: "master", note: "All Azure Landing Zone networks" });
     if (mode === "reference") {
-      masterRows.push({ name: "Region 1", cidr: C.cidr(regionBase, 13), addresses: C.sizeOf(13), kind: "region", note: `Primary region — ${region}` });
-      masterRows.push({ name: "├─ Platform Landing Zone", cidr: C.cidr(regionBase, 16), addresses: 65536, kind: "block", note: `${hub.name} declares ${hub.prefixes.length} × /19 = ${C.fmt(hub.declared)} addresses; remainder plan-reserved (§3.0)` });
-      masterRows.push({ name: "├─ Reserved — platform growth", cidr: growth.cidr, addresses: growth.size, kind: "reserved", note: "Second hub / Identity VNet; never assign to spokes (§2)" });
-      masterRows.push({ name: "└─ Application Landing Zones", cidr: C.cidr(regionBase + 4 * 65536, 14), addresses: C.sizeOf(14), kind: "block", note: "Size-based pools below — environment lives in the name, not the pool" });
+      masterRows.push({ name: "Region 1", cidr: C.cidr(regionBase, 13), addresses: C.sizeOf(13), kind: "region", note: `Primary region, ${region}` });
+      masterRows.push({ name: "├─ Platform Landing Zone", cidr: C.cidr(regionBase, 16), addresses: 65536, kind: "block", note: `${hub.name} declares ${hub.prefixes.length} × /19 = ${C.fmt(hub.declared)} addresses; remainder plan-reserved (Section 3.0)` });
+      masterRows.push({ name: "├─ Reserved, platform growth", cidr: growth.cidr, addresses: growth.size, kind: "reserved", note: "Second hub / Identity VNet; never assign to spokes (Section 2)" });
+      masterRows.push({ name: "└─ Application Landing Zones", cidr: C.cidr(regionBase + 4 * 65536, 14), addresses: C.sizeOf(14), kind: "block", note: "Size-based pools below, environment lives in the name, not the pool" });
       pools.forEach(p => masterRows.push({ name: `&nbsp;&nbsp;&nbsp;&nbsp;${p.name} pool`, cidr: p.cidr, addresses: p.size, kind: "pool", note: p.note }));
     } else {
-      if (hub.prefixes.length) masterRows.push({ name: hub.name, cidr: hub.prefixes[0], addresses: hub.declared, kind: "block", note: "Right-sized; extend online later (peering resync per change, §2.2)" });
+      if (hub.prefixes.length) masterRows.push({ name: hub.name, cidr: hub.prefixes[0], addresses: hub.declared, kind: "block", note: "Right-sized; extend online later (peering resync per change, Section 2.2)" });
       pools.forEach(p => masterRows.push({ name: `${p.name} pool`, cidr: p.cidr, addresses: p.size, kind: "block", note: `${p.allocs.length} spokes · ${p.note}` }));
     }
-    if (plan.region2) masterRows.push({ name: "Region 2 (reserved)", cidr: plan.region2.cidr, addresses: plan.region2.size, kind: "reserved", note: "Deploy with the identical internal template (§2.1)" });
+    if (plan.region2) masterRows.push({ name: "Region 2 (reserved)", cidr: plan.region2.cidr, addresses: plan.region2.size, kind: "reserved", note: "Deploy with the identical internal template (Section 2.1)" });
     const masterEnd2 = master.base + master.size;
     const freeStart = mode === "reference" ? (plan.region2 ? regionBase + 2 * C.sizeOf(13) : regionBase + C.sizeOf(13)) : (plan.region2 ? null : spokeAreaEnd);
     if (freeStart !== null && freeStart < masterEnd2) {
-      masterRows.push({ name: "Unallocated", cidr: `${C.intToIp(freeStart)} – ${C.intToIp(masterEnd2 - 1)}`, addresses: masterEnd2 - freeStart, kind: "free", note: "Future regions — reserve in IPAM before use (§2)" });
+      masterRows.push({ name: "Unallocated", cidr: `${C.intToIp(freeStart)} – ${C.intToIp(masterEnd2 - 1)}`, addresses: masterEnd2 - freeStart, kind: "free", note: "Future regions, reserve in IPAM before use (Section 2)" });
     }
     plan.masterRows = masterRows;
 
     /* ════════ 9 · ROUTE TABLES ════════ */
-    /* v5.2 (F1) — Azure picks routes by LONGEST PREFIX MATCH across all
+    /* v5.2 (F1), Azure picks routes by LONGEST PREFIX MATCH across all
        sources first; "UDR beats system" applies only at IDENTICAL
        prefixes. Peering creates one system route per remote VNet
        prefix, so summary UDRs (To-Hub /16, To-Spokes /14) silently
@@ -869,11 +869,11 @@
     const onpremRoutes = (hop) => onprem.map((o, i) =>
       route(onprem.length > 1 ? `To-OnPremises-${i + 1}` : "To-OnPremises", o.cidr, va, `${hop.ip} (${hop.label})`));
 
-    /** one exact-prefix route per spoke VNet — equal prefix ties beat the
+    /** one exact-prefix route per spoke VNet, equal prefix ties beat the
         peering system route (F1). Scales to ~400 routes per table (1,000
         with AVNM-managed route tables).                                  */
     const perSpoke = (toStr, type) => allAllocs.map(a =>
-      route(`To-${a.nameBase}`, a.cidr, type || va, type === "Virtual Network" ? "—" : toStr));
+      route(`To-${a.nameBase}`, a.cidr, type || va, type === "Virtual Network" ? "-" : toStr));
 
     /** spoke→hub steering: exact hub VNet prefixes (tie → UDR wins) */
     const hubExact = (toStr) => mode === "reference"
@@ -917,20 +917,20 @@
         if (hasShared) r.push(route("To-SharedServices", sharedCidr || hubRouteCidr, va, ewTo));
         if (hasMgmt && mgmtCidr) r.push(route("To-Management", mgmtCidr, va, ewTo));
         rts.push({ name: "RT-GatewaySubnet", appliesTo: "GatewaySubnet", bgp: "Enabled", required: true, routes: r,
-          note: "On-prem traffic arriving via VPN/ER is steered through the East-West inspector before reaching spokes or platform services. One route per spoke with the spoke's EXACT prefix — an equal-prefix UDR overrides the peering system route, a /14 summary would not (F1, §7.0). 0.0.0.0/0 is NOT permitted here; BGP propagation must stay enabled." });
+          note: "On-prem traffic arriving via VPN/ER is steered through the East-West inspector before reaching spokes or platform services. One route per spoke with the spoke's EXACT prefix, an equal-prefix UDR overrides the peering system route, a /14 summary would not (F1, Section 7.0). 0.0.0.0/0 is NOT permitted here; BGP propagation must stay enabled." });
       }
 
       {
         const r = [route("To-Internet", "0.0.0.0/0", va, nsTo), ...hubExact(ewTo)];
         spokesPrefixes.forEach((p, i) => r.push(route(spokesPrefixes.length > 1 ? `To-OtherSpokes-${i + 1}` : "To-OtherSpokes", p, va, ewTo)));
         r.push(...onpremRoutes(lateralHop));
-        if (S.bastion && svc.bastion) r.push(route("To-Bastion-Direct", S.bastion.cidr, "Virtual Network", "—"));
+        if (S.bastion && svc.bastion) r.push(route("To-Bastion-Direct", S.bastion.cidr, "Virtual Network", "-"));
         directReturnSubnets.forEach((cidr2, i) =>
-          r.push(route(i === 0 ? "To-NVA-Internal-Direct" : `To-NVA-Internal-Direct-${i + 1}`, cidr2, "Virtual Network", "—")));
-        rts.push({ name: "RT-Spoke-Workloads", appliesTo: `every spoke subnet — instantiated per spoke as rt-<spoke>-<env>-${region}`, bgp: "Disabled", routes: r,
-          note: (mode === "reference" ? "To-Hub-* use the hub VNet's EXACT declared prefixes so the UDRs tie-break over the peering system routes and traffic is actually inspected (F1); To-Hub-Plan keeps the /16 as an inspected black-hole for unassigned hub space (§3.0). " : "To-Hub matches the hub VNet's declared prefix exactly so the UDR overrides the peering route (F1). ") +
-                "To-Bastion-Direct keeps Bastion session returns off the inspection path (Bastion→VM traffic arrives direct — a steered return would be asymmetric and dropped). " +
-                (ewEngine === "nva" ? "To-NVA-Internal-Direct* let SNAT/DNAT return traffic reach the specific NVA instance directly, preventing asymmetry in active-active scenarios (§7.1)." : "Azure Firewall return traffic needs no direct route — the platform handles symmetry.") });
+          r.push(route(i === 0 ? "To-NVA-Internal-Direct" : `To-NVA-Internal-Direct-${i + 1}`, cidr2, "Virtual Network", "-")));
+        rts.push({ name: "RT-Spoke-Workloads", appliesTo: `every spoke subnet, instantiated per spoke as rt-<spoke>-<env>-${region}`, bgp: "Disabled", routes: r,
+          note: (mode === "reference" ? "To-Hub-* use the hub VNet's EXACT declared prefixes so the UDRs tie-break over the peering system routes and traffic is actually inspected (F1); To-Hub-Plan keeps the /16 as an inspected black-hole for unassigned hub space (Section 3.0). " : "To-Hub matches the hub VNet's declared prefix exactly so the UDR overrides the peering route (F1). ") +
+                "To-Bastion-Direct keeps Bastion session returns off the inspection path (Bastion→VM traffic arrives direct, a steered return would be asymmetric and dropped). " +
+                (ewEngine === "nva" ? "To-NVA-Internal-Direct* let SNAT/DNAT return traffic reach the specific NVA instance directly, preventing asymmetry in active-active scenarios (Section 7.1)." : "Azure Firewall return traffic needs no direct route, the platform handles symmetry.") });
       }
 
       /* ── Azure Firewall chain-slot route table ── */
@@ -959,13 +959,13 @@
                 ...(svc.pe && S.pe ? [route("To-HubPE", S.pe.cidr, va, to)] : []),
                 ...onprem.map((o, i) => route(onprem.length > 1 ? `To-OnPremises-${i + 1}` : "To-OnPremises", o.cidr, va, to)),
               ],
-          note: `Chain hop ${chainPos}: the firewall's own subnet route table forwards to ${nxt ? nxt.label : "the next group"} (hop ${chainPos + 1}) — fabric-routed, no appliance tricks. Spoke routes use exact prefixes to override peering routes (F1). BGP propagation disabled. AzureFirewallManagementSubnet must keep Azure-managed routing (no UDR).`,
+          note: `Chain hop ${chainPos}: the firewall's own subnet route table forwards to ${nxt ? nxt.label : "the next group"} (hop ${chainPos + 1}), fabric-routed, no appliance tricks. Spoke routes use exact prefixes to override peering routes (F1). BGP propagation disabled. AzureFirewallManagementSubnet must keep Azure-managed routing (no UDR).`,
         });
       } else if (chain) {
         info("Azure Firewall is the last chain hop",
           chain === "ew"
-            ? "No RT-AzureFirewallSubnet needed — the firewall delivers to destinations via VNet system/peering routes. The preceding group's chain-segment route table steers its inspected lateral traffic to the firewall's private IP."
-            : "No RT-AzureFirewallSubnet needed — the firewall egresses to Internet natively (SNAT to its public IP). The preceding group's chain-segment route table steers internet-bound traffic to the firewall's private IP.");
+            ? "No RT-AzureFirewallSubnet needed, the firewall delivers to destinations via VNet system/peering routes. The preceding group's chain-segment route table steers its inspected lateral traffic to the firewall's private IP."
+            : "No RT-AzureFirewallSubnet needed, the firewall egresses to Internet natively (SNAT to its public IP). The preceding group's chain-segment route table steers internet-bound traffic to the firewall's private IP.");
       }
 
       /* ── North-South tier (dual / mixed-ns): per-segment cascade ── */
@@ -974,7 +974,7 @@
           ...perSpoke(tierNsTo),
           ...(hasShared ? [route("To-SharedServices", sharedCidr || hubRouteCidr, va, tierNsTo)] : []),
           ...(hasMgmt && mgmtCidr ? [route("To-Management", mgmtCidr, va, tierNsTo)] : []),
-        ], note: "Defensive cascade, not a loop: a stray internal-destined packet egressing the external NIC is re-entered at the chain entry for inspection. Exact spoke prefixes — summaries would lose to peering routes (F1, §7.2)." });
+        ], note: "Defensive cascade, not a loop: a stray internal-destined packet egressing the external NIC is re-entered at the chain entry for inspection. Exact spoke prefixes, summaries would lose to peering routes (F1, Section 7.2)." });
 
         const nsElems = chainElems("ns");
         nsChainedG.forEach(g => {
@@ -986,8 +986,8 @@
             name: rtName, appliesTo: g.intName, bgp: "Disabled",
             routes: nxt ? [route("To-NextChainHop", "0.0.0.0/0", va, `${nxt.hop.ip} (${nxt.hop.label})`)] : [],
             note: nxt
-              ? `Chain segment ${p + 1}: inspected internet-bound traffic continues to ${nxt.label} (fabric-routed per-subnet UDR — §20). Returns toward Azure clients use specific destinations and bypass this 0.0.0.0/0 via LPM.`
-              : "Last chain segment: internet-bound replies leave via the external NIC using system routing — no 0.0.0.0/0 here, and no To-Spokes route: deliveries toward spokes use the peering system routes directly; a route back into the East-West ILB would create one-sided flows that a stateful inspector drops (F1 fix, §7.3). Kept (empty) so BGP propagation stays disabled on the subnet.",
+              ? `Chain segment ${p + 1}: inspected internet-bound traffic continues to ${nxt.label} (fabric-routed per-subnet UDR, Section 20). Returns toward Azure clients use specific destinations and bypass this 0.0.0.0/0 via LPM.`
+              : "Last chain segment: internet-bound replies leave via the external NIC using system routing, no 0.0.0.0/0 here, and no To-Spokes route: deliveries toward spokes use the peering system routes directly; a route back into the East-West ILB would create one-sided flows that a stateful inspector drops (F1 fix, Section 7.3). Kept (empty) so BGP propagation stays disabled on the subnet.",
           });
         });
       }
@@ -996,9 +996,9 @@
       if (ewEngine === "nva" && arch !== "single" && ewTierObj) {
         rts.push({ name: "RT-EW-External", appliesTo: "Subnet-EW-External", bgp: "Disabled", routes: [
           ...perSpoke(null, "Virtual Network"),
-          ...(hasShared ? [route("To-SharedServices", sharedCidr || hubRouteCidr, "Virtual Network", "—")] : []),
+          ...(hasShared ? [route("To-SharedServices", sharedCidr || hubRouteCidr, "Virtual Network", "-")] : []),
           route("To-Internet", "0.0.0.0/0", va, nsTo),
-        ], note: "Virtual Network next-hops prevent the EW sandwich loop (§7.4). No data-plane traffic on this NIC in the current design." });
+        ], note: "Virtual Network next-hops prevent the EW sandwich loop (Section 7.4). No data-plane traffic on this NIC in the current design." });
 
         const ewElems = chainElems("ew");
         const lateralPrefixes = (to) => [
@@ -1017,23 +1017,23 @@
             /* group 1's In subnet keeps the v5.0 anchor semantics:
                deliveries/returns toward clients, BGP on for on-prem    */
             rts.push({ name: "RT-EW-Internal", appliesTo: "Subnet-EW-Internal", bgp: "Enabled", routes: [
-              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "—")),
-              route("To-Hub", hubRouteCidr, "Virtual Network", "—"),
-            ], note: "Group 1's client-facing subnet: un-SNAT'd returns and deliveries leave here directly (Virtual Network / peering). BGP enabled so the NVA learns the return path to on-prem; explicit Virtual-Network UDRs override BGP via LPM (§7.5)." });
+              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "-")),
+              route("To-Hub", hubRouteCidr, "Virtual Network", "-"),
+            ], note: "Group 1's client-facing subnet: un-SNAT'd returns and deliveries leave here directly (Virtual Network / peering). BGP enabled so the NVA learns the return path to on-prem; explicit Virtual-Network UDRs override BGP via LPM (Section 7.5)." });
             if (nxt && S.ewintfwd) {
               rts.push({ name: "RT-EW-Forward", appliesTo: "Subnet-EW-Forward", bgp: "Disabled",
                 routes: lateralPrefixes(`${nxt.hop.ip} (${nxt.hop.label})`),
-                note: `Group 1's forward subnet: inspected lateral traffic continues to ${nxt.label} via fabric-routed UDRs (exact spoke prefixes override peering — F1/§20). Kept separate from the client-facing subnet so forward steering can never capture group 1's return traffic.` });
+                note: `Group 1's forward subnet: inspected lateral traffic continues to ${nxt.label} via fabric-routed UDRs (exact spoke prefixes override peering, F1/Section 20). Kept separate from the client-facing subnet so forward steering can never capture group 1's return traffic.` });
             }
           } else if (nxt) {
             rts.push({ name: `RT-EW-Internal-${g.chainIdx}`, appliesTo: g.intName, bgp: "Disabled",
               routes: lateralPrefixes(`${nxt.hop.ip} (${nxt.hop.label})`),
-              note: `Chain segment ${p + 1}: inspected lateral traffic continues to ${nxt.label} (fabric-routed per-subnet UDR — §20). Returns toward the previous segment use hub-internal destinations and are delivered by system routes.` });
+              note: `Chain segment ${p + 1}: inspected lateral traffic continues to ${nxt.label} (fabric-routed per-subnet UDR, Section 20). Returns toward the previous segment use hub-internal destinations and are delivered by system routes.` });
           } else {
             rts.push({ name: `RT-EW-Internal-${g.chainIdx}`, appliesTo: g.intName, bgp: "Enabled", routes: [
-              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "—")),
-              route("To-Hub", hubRouteCidr, "Virtual Network", "—"),
-            ], note: "Last chain segment: delivers to destinations directly via Virtual Network / peering routes. BGP enabled so on-prem-bound deliveries reach the gateway (§7.5)." });
+              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "-")),
+              route("To-Hub", hubRouteCidr, "Virtual Network", "-"),
+            ], note: "Last chain segment: delivers to destinations directly via Virtual Network / peering routes. BGP enabled so on-prem-bound deliveries reach the gateway (Section 7.5)." });
           }
         });
       }
@@ -1060,22 +1060,22 @@
           const isBase = g.chainIdx === 1;
           if (isBase) {
             rts.push({ name: "RT-FW-Internal", appliesTo: FW_INT, bgp: "Enabled", routes: [
-              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "—")),
-              route("To-Hub", hubRouteCidr, "Virtual Network", "—"),
+              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "-")),
+              route("To-Hub", hubRouteCidr, "Virtual Network", "-"),
             ], note: "The NVA delivers directly via VNet peering, never back through its own ILB. BGP enabled for the on-prem return path." });
             if (nxt && S.nsintfwd) {
               rts.push({ name: "RT-FW-Forward", appliesTo: "Subnet-FW-Forward", bgp: "Disabled",
                 routes: allPrefixes(`${nxt.hop.ip} (${nxt.hop.label})`),
-                note: `Group 1's forward subnet: all inspected traffic continues to ${nxt.label} via fabric-routed UDRs (§20).` });
+                note: `Group 1's forward subnet: all inspected traffic continues to ${nxt.label} via fabric-routed UDRs (Section 20).` });
             }
           } else if (nxt) {
             rts.push({ name: `RT-FW-Internal-${g.chainIdx}`, appliesTo: g.intName, bgp: "Disabled",
               routes: allPrefixes(`${nxt.hop.ip} (${nxt.hop.label})`),
-              note: `Chain segment ${p + 1}: continues to ${nxt.label} (fabric-routed per-subnet UDR — §20).` });
+              note: `Chain segment ${p + 1}: continues to ${nxt.label} (fabric-routed per-subnet UDR, Section 20).` });
           } else {
             rts.push({ name: `RT-FW-Internal-${g.chainIdx}`, appliesTo: g.intName, bgp: "Enabled", routes: [
-              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "—")),
-              route("To-Hub", hubRouteCidr, "Virtual Network", "—"),
+              ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "-")),
+              route("To-Hub", hubRouteCidr, "Virtual Network", "-"),
             ], note: "Last chain segment: lateral deliveries via Virtual Network / peering; internet egress via the external NIC (system routing). BGP enabled for on-prem deliveries." });
           }
         });
@@ -1086,8 +1086,8 @@
           ...perSpoke(ewTo),
           route("To-Internet", "0.0.0.0/0", va, nsTo),
           ...onpremRoutes(lateralHop),
-        ], note: (svc.dns ? "DNS Resolver egress transits the firewall — it must explicitly allow outbound endpoint → Internet:53 and → on-prem DNS:53, or resolution fails silently (§3.2.2). " : "") +
-                 "One exact-prefix route per spoke — a /14 summary would lose to the peering routes and silently bypass inspection (F1, §7.6)." });
+        ], note: (svc.dns ? "DNS Resolver egress transits the firewall, it must explicitly allow outbound endpoint → Internet:53 and → on-prem DNS:53, or resolution fails silently (Section 3.2.2). " : "") +
+                 "One exact-prefix route per spoke, a /14 summary would lose to the peering routes and silently bypass inspection (F1, Section 7.6)." });
       }
 
       if (isNVA) {
@@ -1095,7 +1095,7 @@
           route("To-Internet", "0.0.0.0/0", va, nsTo),
           ...onpremRoutes(lateralHop),
           ...perSpoke(ewTo),
-        ], note: "Management plane is inspected like any platform flow. If the vendor requires out-of-band management independent of the data-plane NVAs, remove 0.0.0.0/0 and document the exception (§7.7)." });
+        ], note: "Management plane is inspected like any platform flow. If the vendor requires out-of-band management independent of the data-plane NVAs, remove 0.0.0.0/0 and document the exception (Section 7.7)." });
       }
 
       if (hasMgmt) {
@@ -1103,14 +1103,14 @@
           route("To-Internet", "0.0.0.0/0", va, nsTo),
           ...onpremRoutes(lateralHop),
           ...perSpoke(ewTo),
-        ], note: "Identical to RT-Platform-Workloads; kept separate for blast-radius isolation (§7.8)." });
+        ], note: "Identical to RT-Platform-Workloads; kept separate for blast-radius isolation (Section 7.8)." });
       }
     } else if (arch === "none") {
       if (wantGw) {
-        rts.push({ name: "(no route tables required)", appliesTo: "—", bgp: "—", routes: [],
+        rts.push({ name: "(no route tables required)", appliesTo: "-", bgp: "-", routes: [],
           note: "System routes + VNet peering with gateway transit handle all reachability. Spokes learn on-prem prefixes via BGP automatically; spoke↔spoke needs direct peering per pair." });
       } else {
-        rts.push({ name: "(no route tables required)", appliesTo: "—", bgp: "—", routes: [],
+        rts.push({ name: "(no route tables required)", appliesTo: "-", bgp: "-", routes: [],
           note: "System routes handle everything. Add NAT Gateways for internet egress (default outbound access is retired)." });
       }
     }
@@ -1118,7 +1118,7 @@
 
     plan.bgpRows = rts.filter(r => r.name && !r.name.startsWith("(")).map(r => ({
       name: r.name, bgp: r.bgp,
-      reason: r.name === "RT-GatewaySubnet" ? "Required — disabling breaks the gateway (§8)"
+      reason: r.name === "RT-GatewaySubnet" ? "Required, disabling breaks the gateway (Section 8)"
         : r.bgp === "Enabled" ? "Learns on-prem prefixes for the NVA return path; explicit UDRs win via LPM"
         : r.routes.length ? "Force all traffic through inspection via explicit UDRs"
         : "Kept (empty) so BGP propagation stays disabled on the subnet",
@@ -1137,7 +1137,7 @@
     if (svc.bastion) {
       nsgs.push({
         name: "NSG-Bastion", appliesTo: "AzureBastionSubnet", required: true,
-        note: "Azure Bastion requires these exact rules — missing rules fail deployment. Four rules use protocol Any per the normative Microsoft summary table; do not tighten to TCP without lab validation (§9.1).",
+        note: "Azure Bastion requires these exact rules, missing rules fail deployment. Four rules use protocol Any per the normative Microsoft summary table; do not tighten to TCP without lab validation (Section 9.1).",
         rules: [
           rule(120, "AllowHttpsInbound", "Inbound", "Internet", "*", "443", "TCP", "Allow"),
           rule(130, "AllowGatewayManagerInbound", "Inbound", "GatewayManager", "*", "443", "TCP", "Allow"),
@@ -1157,7 +1157,7 @@
       const extName = arch === "single" ? "NSG-FW-External" : "NSG-NS-External";
       nsgs.push({
         name: extName, appliesTo: FW_EXT,
-        note: "Inbound publishing rules — only what the NVAs actually terminate. On-prem traffic never enters here; it arrives via the GatewaySubnet (§9.2).",
+        note: "Inbound publishing rules, only what the NVAs actually terminate. On-prem traffic never enters here; it arrives via the GatewaySubnet (Section 9.2).",
         rules: [
           rule(100, "AllowHTTPS-Inbound", "Inbound", "Internet", S.nsext.cidr, "443", "TCP", "Allow"),
           rule(110, "AllowHTTP-Inbound", "Inbound", "Internet", S.nsext.cidr, "80", "TCP", "Allow"),
@@ -1191,7 +1191,7 @@
       intRules.push(ALLOW_LB, DENY_IN);
       nsgs.push({ name: intName, appliesTo: nsInNames.join(", "),
         note: (arch === "single" ? "Entry point for all inspected traffic (ILB VIP lives here). " : "") +
-              (nsInSubs.length > 1 ? "AllowFromChainSegments permits the fabric-routed hop-to-hop legs between chain-segment subnets (forward legs are new inbound flows at each hop; returns ride NSG flow state) (§20)." : ""),
+              (nsInSubs.length > 1 ? "AllowFromChainSegments permits the fabric-routed hop-to-hop legs between chain-segment subnets (forward legs are new inbound flows at each hop; returns ride NSG flow state) (Section 20)." : ""),
         rules: intRules });
     }
 
@@ -1204,7 +1204,7 @@
         ALLOW_LB, DENY_IN,
       ];
       nsgs.push({ name: "NSG-EW-External", appliesTo: "Subnet-EW-External", rules: ewExtRules,
-        note: "Management plane / future expansion only — no data-plane traffic in this design (§9.4)." });
+        note: "Management plane / future expansion only, no data-plane traffic in this design (Section 9.4)." });
       const ewInSubs = ewTierObj ? [...new Set(ewTierObj.groups.map(g => g.intSubnet))] : [S.ewint.cidr];
       const ewInNames = ewTierObj ? [...new Set(ewTierObj.groups.map(g => g.intName))] : ["Subnet-EW-Internal"];
       if (S.ewintfwd) { ewInSubs.push(S.ewintfwd.cidr); ewInNames.push("Subnet-EW-Forward"); }
@@ -1220,8 +1220,8 @@
           rule(130, "AllowFromPlatform", "Inbound", platformSrc, ewDst, "Any", "Any", "Allow"),
           ALLOW_LB, DENY_IN,
         ],
-        note: (ewHop && ewHop.kind === "ilb" ? `${ewHop.label} (${ewHop.ip}) is the single entry point for all East-West inspection — spokes and platform must be allowed in (§9.5). ` : "") +
-              (ewInSubs.length > 1 ? "AllowFromChainSegments makes the hop-to-hop legs between chain-segment subnets explicit (also covered by AllowFromPlatform; kept narrow for auditability) (§20)." : ""),
+        note: (ewHop && ewHop.kind === "ilb" ? `${ewHop.label} (${ewHop.ip}) is the single entry point for all East-West inspection, spokes and platform must be allowed in (Section 9.5). ` : "") +
+              (ewInSubs.length > 1 ? "AllowFromChainSegments makes the hop-to-hop legs between chain-segment subnets explicit (also covered by AllowFromPlatform; kept narrow for auditability) (Section 20)." : ""),
       });
     }
 
@@ -1243,7 +1243,7 @@
       r.push(rule(210, "AllowOutboundToInternet", "Outbound", "Any", "Internet", "443", "TCP", "Allow"));
       nsgs.push({
         name: "NSG-SharedServices", appliesTo: [svc.dc && "DomainControllers", svc.mon && "Monitoring", svc.kv && "KeyVault"].filter(Boolean).map(s => "Subnet-" + s).join(", "),
-        note: (svc.dc ? "Full AD port set incl. UDP Kerberos/DNS, RPC mapper + dynamic range, Global Catalog and W32Time — and on-prem sources, or DC replication/logons break (§9.6). Restrict the dynamic RPC range only if DCs pin a static port. " : "") +
+        note: (svc.dc ? "Full AD port set incl. UDP Kerberos/DNS, RPC mapper + dynamic range, Global Catalog and W32Time, and on-prem sources, or DC replication/logons break (Section 9.6). Restrict the dynamic RPC range only if DCs pin a static port. " : "") +
               (svc.kv && S.kv ? "AllowKeyVaultPE (F5 fix): spoke clients arrive post-SNAT from the East-West inspector, hub/management clients intra-VNet; without it the custom DenyAllInbound left Key Vault private endpoints unreachable on 443. Requires privateEndpointNetworkPolicies = Enabled on the subnet." : ""),
         rules: r,
       });
@@ -1254,7 +1254,7 @@
       if (bastionRule) r.push(bastionRule);
       if (onpremSrc) r.push(rule(100, "AllowAdminFromOnPrem", "Inbound", onpremSrc, S.jump.cidr, "22,3389", "TCP", "Allow"));
       r.push(ALLOW_LB, DENY_IN);
-      nsgs.push({ name: "NSG-JumpServers", appliesTo: "Subnet-JumpServers", note: "Tighten the admin source to your PAW/management ranges — owner + expiry on any exception (guide §15.2).", rules: r });
+      nsgs.push({ name: "NSG-JumpServers", appliesTo: "Subnet-JumpServers", note: "Tighten the admin source to your PAW/management ranges, owner + expiry on any exception (guide Section 15.2).", rules: r });
     }
 
     if (svc.mgmt) {
@@ -1264,7 +1264,7 @@
       r.push(rule(100, "AllowFromPlatform", "Inbound", mgmtSrc, "Any", "443", "TCP", "Allow"));
       r.push(ALLOW_LB, DENY_IN);
       nsgs.push({ name: "NSG-Management", appliesTo: "Management section subnets", rules: r,
-        note: "Source scoped to the hub VNet's declared prefixes (not the /16 plan block) — least privilege over unassigned space." });
+        note: "Source scoped to the hub VNet's declared prefixes (not the /16 plan block), least privilege over unassigned space." });
     }
 
     if (isNVA) {
@@ -1283,7 +1283,7 @@
     ];
     const spokeApp = [
       rule(100, "AllowFromWebTier", "Inbound", "ASG-WebServers", "ASG-AppServers", "8080,8443", "TCP", "Allow"),
-      /* v5.2: the former "AllowFromDataTier 1433 → app" rule was removed —
+      /* v5.2: the former "AllowFromDataTier 1433 → app" rule was removed,
          NSGs are stateful (returns of app→data SQL sessions need no inbound
          rule) and no documented flow has the data tier initiating to the
          app tier on 1433. Dead rules widen the audit surface.            */
@@ -1295,9 +1295,9 @@
     [spokeWeb, spokeApp, spokeData].forEach(r => { if (bastionRule) r.push(bastionRule); r.push(ALLOW_LB, DENY_IN); });
     if (totalSpokes > 0) {
       const inst = (t) => `instantiated per spoke as nsg-${t}-<spoke>-<env>-${region}`;
-      nsgs.push({ name: "NSG-Spoke-Web", appliesTo: `web tiers — ${inst("web")}`, rules: spokeWeb, note: bastionRule ? "Rule 140 is mandatory: the custom DenyAllInbound at 4096 means the default AllowVnetInBound never fires — without it Bastion sessions are silently blocked (§9.7–9.9)." : "" });
-      nsgs.push({ name: "NSG-Spoke-App", appliesTo: `app tiers — ${inst("app")}`, rules: spokeApp, note: "" });
-      nsgs.push({ name: "NSG-Spoke-Data", appliesTo: `data tiers — ${inst("data")}`, rules: spokeData, note: "" });
+      nsgs.push({ name: "NSG-Spoke-Web", appliesTo: `web tiers, ${inst("web")}`, rules: spokeWeb, note: bastionRule ? "Rule 140 is mandatory: the custom DenyAllInbound at 4096 means the default AllowVnetInBound never fires, without it Bastion sessions are silently blocked (Section 9.7–9.9)." : "" });
+      nsgs.push({ name: "NSG-Spoke-App", appliesTo: `app tiers, ${inst("app")}`, rules: spokeApp, note: "" });
+      nsgs.push({ name: "NSG-Spoke-Data", appliesTo: `data tiers, ${inst("data")}`, rules: spokeData, note: "" });
     }
 
     if (svc.pe || totalSpokes > 0) {
@@ -1309,7 +1309,7 @@
       r.push(DENY_IN);
       nsgs.push({
         name: "NSG-PrivateEndpoints", appliesTo: "Hub + spoke PE subnets",
-        note: "Rule 90 (F3 fix) exists only on the per-spoke instantiation, with that spoke's own VNet CIDR substituted: intra-spoke traffic to the spoke's own private endpoints stays on the VNet system route (the spoke's own prefix is more specific than any UDR), arrives UN-SNAT'd, and was previously denied at 4096. Omit rule 90 on the hub PE subnet. Rule 100 matches the post-SNAT source — the LAST East-West chain element's internal range (§11.3/§20). Extend ports beyond 443 per service (e.g., 1433 for SQL PEs). Requires privateEndpointNetworkPolicies = Enabled. On-prem → HUB PE is intentionally direct (rule 120); on-prem → SPOKE PE arrives post-SNAT via rule 100.",
+        note: "Rule 90 (F3 fix) exists only on the per-spoke instantiation, with that spoke's own VNet CIDR substituted: intra-spoke traffic to the spoke's own private endpoints stays on the VNet system route (the spoke's own prefix is more specific than any UDR), arrives UN-SNAT'd, and was previously denied at 4096. Omit rule 90 on the hub PE subnet. Rule 100 matches the post-SNAT source, the LAST East-West chain element's internal range (Section 11.3/Section 20). Extend ports beyond 443 per service (e.g., 1433 for SQL PEs). Requires privateEndpointNetworkPolicies = Enabled. On-prem → HUB PE is intentionally direct (rule 120); on-prem → SPOKE PE arrives post-SNAT via rule 100.",
         rules: r,
       });
     }
@@ -1327,21 +1327,21 @@
     plan.peering = {
       hubToSpoke: [
         { flag: "AllowVirtualNetworkAccess", value: "true", why: "Hub ↔ spoke VM connectivity (default)" },
-        { flag: "AllowForwardedTraffic", value: "true", why: "Hub accepts forwarded traffic from spokes — kept true for symmetry/future-proofing" },
-        { flag: "AllowGatewayTransit", value: hybrid ? "true" : "false", why: hybrid ? "Required — hub gateway serves the spokes" : "No gateway deployed" },
+        { flag: "AllowForwardedTraffic", value: "true", why: "Hub accepts forwarded traffic from spokes, kept true for symmetry/future-proofing" },
+        { flag: "AllowGatewayTransit", value: hybrid ? "true" : "false", why: hybrid ? "Required, hub gateway serves the spokes" : "No gateway deployed" },
         { flag: "UseRemoteGateways", value: "false", why: "The hub owns the gateway" },
       ],
       spokeToHub: [
         { flag: "AllowVirtualNetworkAccess", value: "true", why: "Spoke ↔ hub VM connectivity (default)" },
-        { flag: "AllowForwardedTraffic", value: "true", why: "REQUIRED — legalises un-SNAT'd NVA-forwarded traffic entering the spoke; without it Azure silently drops it (§4.3.2)" },
+        { flag: "AllowForwardedTraffic", value: "true", why: "REQUIRED, legalises un-SNAT'd NVA-forwarded traffic entering the spoke; without it Azure silently drops it (Section 4.3.2)" },
         { flag: "AllowGatewayTransit", value: "false", why: "Spokes host no gateway" },
-        { flag: "UseRemoteGateways", value: hybrid ? "true" : "false", why: hybrid ? "Required — spoke reaches on-prem via the hub gateway" : "No gateway — must be false" },
+        { flag: "UseRemoteGateways", value: hybrid ? "true" : "false", why: hybrid ? "Required, spoke reaches on-prem via the hub gateway" : "No gateway, must be false" },
       ],
       notes: [
-        arch !== "none" ? "Direct spoke↔spoke peering is NOT permitted — all east-west traffic transits the hub inspection point (§4.3.3)." :
+        arch !== "none" ? "Direct spoke↔spoke peering is NOT permitted, all east-west traffic transits the hub inspection point (Section 4.3.3)." :
           "Without central inspection, spoke↔spoke connectivity requires explicit direct peering per pair (peering is non-transitive).",
-        totalSpokes > 100 ? "At this scale manage peering + flag drift with Azure Virtual Network Manager connectivity configurations instead of per-spoke IaC (§4.3)." : null,
-        "Hub address-space changes require a peering resync on every spoke — online, but budget it into the change window (§2.2).",
+        totalSpokes > 100 ? "At this scale manage peering + flag drift with Azure Virtual Network Manager connectivity configurations instead of per-spoke IaC (Section 4.3)." : null,
+        "Hub address-space changes require a peering resync on every spoke, online, but budget it into the change window (Section 2.2).",
       ].filter(Boolean),
     };
 
@@ -1350,10 +1350,10 @@
       inbound: S.dnsin ? C.intToIp(S.dnsin.base + 4) : null,
       outbound: S.dnsout ? C.intToIp(S.dnsout.base + 4) : null,
       notes: [
-        "Link every privatelink.* zone to the Hub VNet only; spokes resolve via the inbound endpoint (set as their VNet DNS server) — no per-spoke zone-link sprawl (§11.5.2).",
-        onprem.length ? "On-prem DNS: add a conditional forwarder per privatelink.* zone → the inbound endpoint (§11.5.3)." : null,
-        "Forwarding ruleset: explicit on-prem domains only — wildcard \".\" rules are prohibited with an ER gateway in the same VNet (§3.2.1).",
-        arch !== "none" ? "Firewall must explicitly allow outbound-endpoint DNS egress (UDP/TCP 53) or resolution fails silently (§3.2.2)." : null,
+        "Link every privatelink.* zone to the Hub VNet only; spokes resolve via the inbound endpoint (set as their VNet DNS server), no per-spoke zone-link sprawl (Section 11.5.2).",
+        onprem.length ? "On-prem DNS: add a conditional forwarder per privatelink.* zone → the inbound endpoint (Section 11.5.3)." : null,
+        "Forwarding ruleset: explicit on-prem domains only, wildcard \".\" rules are prohibited with an ER gateway in the same VNet (Section 3.2.1).",
+        arch !== "none" ? "Firewall must explicitly allow outbound-endpoint DNS egress (UDP/TCP 53) or resolution fails silently (Section 3.2.2)." : null,
       ].filter(Boolean),
       zones: ["privatelink.vaultcore.azure.net", "privatelink.blob.core.windows.net", "privatelink.database.windows.net", "privatelink.azurewebsites.net + scm", "privatelink.azurecr.io", "privatelink.monitor.azure.com (full AMPLS set)"],
     } : null;
@@ -1361,30 +1361,32 @@
     /* ════════ 13 · CAPACITY & GUARDRAILS ════════ */
     const peerings = totalSpokes + (plan.region2 ? 1 : 0);
     const erPrefixes = hub.prefixes.length + totalSpokes;
-    if (totalSpokes > 499) err("Hub peering limit exceeded", `${totalSpokes} spokes > the 500-peerings-per-VNet platform limit (practical ceiling ≈ 499). Plan a second hub VNet or Virtual WAN (§15.4).`);
-    else if (totalSpokes >= 400) warn("Approaching hub peering ceiling", `${totalSpokes} spokes — at ~400 begin planning a second hub VNet (platform-growth space) or the Virtual WAN re-evaluation (§15.4).`);
-    if (conn.expressRoute && erPrefixes > 1000) err("ER advertisement limit", `${erPrefixes} prefixes advertised to on-prem exceeds the 1,000 ER private-peering limit (§15.4). Keep spokes single-prefix and reduce count.`);
+    if (totalSpokes > 499) err("Hub peering limit exceeded", `${totalSpokes} spokes > the 500-peerings-per-VNet platform limit (practical ceiling ≈ 499). Plan a second hub VNet or Virtual WAN (Section 15.4).`);
+    else if (totalSpokes >= 400) warn("Approaching hub peering ceiling", `${totalSpokes} spokes, at ~400 begin planning a second hub VNet (platform-growth space) or the Virtual WAN re-evaluation (Section 15.4).`);
+    if (conn.expressRoute && erPrefixes > 1000) err("ER advertisement limit", `${erPrefixes} prefixes advertised to on-prem exceeds the 1,000 ER private-peering limit (Section 15.4). Keep spokes single-prefix, summarise the hub + spoke prefixes with the gateway's Advertised Gateway Prefixes (summarizedGatewayPrefixes), or split across hubs.`);
+    else if (conn.expressRoute && erPrefixes > 800) info("ER advertisement approaching the limit, summarise with Advertised Gateway Prefixes",
+      `${erPrefixes} prefixes (hub + 1 per spoke) advance toward the 1,000-prefix ER private-peering limit (Section 15.4). Set the VPN/ExpressRoute gateway's Advertised Gateway Prefixes (summarizedGatewayPrefixes) so it advertises a summary of the hub address space and covered spoke prefixes instead of every individual prefix, the sanctioned lever for staying under the limit without renumbering, especially where multiple hubs share the same ExpressRoute circuits (Section 2.1).`);
 
-    /* v5.2 (F1) — per-spoke exact routes make UDRs-per-table a binding
+    /* v5.2 (F1), per-spoke exact routes make UDRs-per-table a binding
        scale constraint alongside the 500-peering limit                 */
     const maxRoutes = rts.reduce((a, r) => Math.max(a, r.routes.length), 0);
     if (maxRoutes > 1000) err("Route-table limit exceeded",
-      `${maxRoutes} routes in one table exceeds even the AVNM-managed maximum (1,000). Reduce spokes per hub or split hubs (§15.4).`);
+      `${maxRoutes} routes in one table exceeds even the AVNM-managed maximum (1,000). Reduce spokes per hub or split hubs (Section 15.4).`);
     else if (maxRoutes > 400) warn("Route tables need AVNM management",
-      `${maxRoutes} routes in one table exceeds the default 400-UDR limit — manage these route tables with Azure Virtual Network Manager (raises the limit to 1,000) (§15.4).`);
+      `${maxRoutes} routes in one table exceeds the default 400-UDR limit, manage these route tables with Azure Virtual Network Manager (raises the limit to 1,000) (Section 15.4).`);
 
     plan.capacity = {
       cards: [
         { label: "Supernet", value: master.normalized, sub: `${C.fmt(master.size)} addresses` },
-        { label: "Hub declared", value: hub.prefixes.length ? `${C.fmt(hub.declared)}` : "—", sub: hub.prefixes.length > 1 ? `${hub.prefixes.length} × /19 prefixes` : (hub.prefixes[0] || "no hub"), accent: false },
-        { label: "Hub subnetted", value: C.fmt(hub.subnetted), sub: hub.declared ? `${Math.round(hub.subnetted / hub.declared * 100)}% of declared space` : "—" },
+        { label: "Hub declared", value: hub.prefixes.length ? `${C.fmt(hub.declared)}` : "-", sub: hub.prefixes.length > 1 ? `${hub.prefixes.length} × /19 prefixes` : (hub.prefixes[0] || "no hub"), accent: false },
+        { label: "Hub subnetted", value: C.fmt(hub.subnetted), sub: hub.declared ? `${Math.round(hub.subnetted / hub.declared * 100)}% of declared space` : "-" },
         { label: "Spokes", value: String(totalSpokes), sub: `${C.fmt(pools.reduce((a, p) => a + p.used, 0))} addresses allocated`, accent: true },
       ],
       guardrails: [
-        { name: "VNet peerings on the hub", value: `${peerings} / 500`, status: totalSpokes > 499 ? "err" : totalSpokes >= 400 ? "warn" : "ok", note: `${totalSpokes} spoke peering${totalSpokes === 1 ? "" : "s"}${plan.region2 ? " + 1 reserved for the future Region-2 hub-hub peering (§2.1)" : ""} — binding platform constraint, practical ceiling ≈ 499 spokes per regional hub (§15.4)` },
-        conn.expressRoute ? { name: "ER prefixes advertised to on-prem", value: `${erPrefixes} / 1,000`, status: erPrefixes > 1000 ? "err" : erPrefixes > 800 ? "warn" : "ok", note: `${hub.prefixes.length} hub prefix${hub.prefixes.length > 1 ? "es" : ""} + 1 per spoke — keep spokes single-prefix (§15.4)` } : null,
+        { name: "VNet peerings on the hub", value: `${peerings} / 500`, status: totalSpokes > 499 ? "err" : totalSpokes >= 400 ? "warn" : "ok", note: `${totalSpokes} spoke peering${totalSpokes === 1 ? "" : "s"}${plan.region2 ? " + 1 reserved for the future Region-2 hub-hub peering (Section 2.1)" : ""}, binding platform constraint, practical ceiling ≈ 499 spokes per regional hub (Section 15.4)` },
+        conn.expressRoute ? { name: "ER prefixes advertised to on-prem", value: `${erPrefixes} / 1,000`, status: erPrefixes > 1000 ? "err" : erPrefixes > 800 ? "warn" : "ok", note: `${hub.prefixes.length} hub prefix${hub.prefixes.length > 1 ? "es" : ""} + 1 per spoke, keep spokes single-prefix, or summarise with the gateway's Advertised Gateway Prefixes (summarizedGatewayPrefixes) (Section 15.4)` } : null,
         { name: "UDRs per route table (max)", value: `${maxRoutes} / ${maxRoutes > 400 ? "1,000 (AVNM)" : "400"}`, status: maxRoutes > 1000 ? "err" : maxRoutes > 400 ? "warn" : "ok",
-          note: "Per-spoke exact-prefix routes (F1) grow hub-side tables by 1 route per spoke — default 400 UDRs/table, 1,000 with AVNM-managed route tables (§15.4)" },
+          note: "Per-spoke exact-prefix routes (F1) grow hub-side tables by 1 route per spoke, default 400 UDRs/table, 1,000 with AVNM-managed route tables (Section 15.4)" },
         ...tiers.flatMap(t => {
           const bySub = new Map();
           t.groups.forEach(g => {
@@ -1398,9 +1400,9 @@
             const dyn = gs.reduce((a, g) => a + (g.vmss ? g.scale.max : 0), 0);
             const need = statics + vips + dyn;
             const cap = C.usable(24);
-            return { name: `${t.label} — ${subName} capacity`, value: `${need} / ${cap} IPs`,
+            return { name: `${t.label}, ${subName} capacity`, value: `${need} / ${cap} IPs`,
                      status: need > cap || statics > 96 ? "err" : need > cap * 0.8 || statics > 76 ? "warn" : "ok",
-                     note: `${gs.length} group${gs.length === 1 ? "" : "s"}: ${statics} static NICs (max 96, .4–.99) + ${vips} ILB VIP${vips === 1 ? "" : "s"} + ${dyn} VMSS dynamic NICs (§20.2)` };
+                     note: `${gs.length} group${gs.length === 1 ? "" : "s"}: ${statics} static NICs (max 96, .4–.99) + ${vips} ILB VIP${vips === 1 ? "" : "s"} + ${dyn} VMSS dynamic NICs (Section 20.2)` };
           });
         }),
         ...pools.filter(p => p.allocs.length || mode === "reference").map(p => {
@@ -1408,7 +1410,7 @@
           return { name: `${p.name} pool utilisation`, value: `${pct}% of ${p.cidr}`, status: pct > 100 ? "err" : pct > 80 ? "warn" : "ok",
                    note: p.key === "ml" ? `max ${p.maxM} Medium or ${p.maxL} Large (each Large displaces 4 Mediums)` : p.maxS ? `max ${p.maxS} Small spokes` : p.note };
         }),
-        svc.ddos ? { name: "DDoS Network Protection", value: "1 plan, all VNets", status: "ok", note: "Single plan in the Connectivity subscription, associated to hub + every spoke (§1.1)" } : null,
+        svc.ddos ? { name: "DDoS Network Protection", value: "1 plan, all VNets", status: "ok", note: "Single plan in the Connectivity subscription, associated to hub + every spoke (Section 1.1)" } : null,
       ].filter(Boolean),
     };
 

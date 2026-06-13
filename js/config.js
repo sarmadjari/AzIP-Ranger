@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   AzIP-Ranger · config.js — edit the lists here, the app picks
+   AzIP-Ranger · config.js, edit the lists here, the app picks
    them up everywhere (dropdowns, naming convention, IP sizing).
 
    Each entry is { name, value }:
@@ -18,7 +18,7 @@
       environment: "prod",
     },
 
-    /* Azure regions — value is used verbatim in every generated name */
+    /* Azure regions, value is used verbatim in every generated name */
     regions: [
       { name: "West Europe",          value: "westeurope" },
       { name: "North Europe",         value: "northeurope" },
@@ -43,7 +43,7 @@
       { name: "Australia East",       value: "australiaeast" },
     ],
 
-    /* Spoke environments — value flows into vnet-/snet-/nsg-/rt- names */
+    /* Spoke environments, value flows into vnet-/snet-/nsg-/rt- names */
     environments: [
       { name: "Production",  value: "prod" },
       { name: "Development", value: "dev" },
@@ -55,15 +55,15 @@
       { name: "DR",          value: "dr" },
     ],
 
-    /* Spoke VNet T-shirt sizes — S/M/L use the v5.0 reference pools;
+    /* Spoke VNet T-shirt sizes, S/M/L use the v5.0 reference pools;
        additional prefixes are allocated in Auto (right-size) mode    */
     spokeSizes: [
-      { name: "S /24 — 256 IPs",   value: "S", prefix: 24 },
-      { name: "M /22 — 1,024 IPs", value: "M", prefix: 22 },
-      { name: "L /20 — 4,096 IPs", value: "L", prefix: 20 },
+      { name: "S /24, 256 IPs",   value: "S", prefix: 24 },
+      { name: "M /22, 1,024 IPs", value: "M", prefix: 22 },
+      { name: "L /20, 4,096 IPs", value: "L", prefix: 20 },
     ],
 
-    /* Allowed VM counts per NVA tier — anything beyond this list
+    /* Allowed VM counts per NVA tier, anything beyond this list
        should be a VMSS with autoscale                              */
     nvaVmCounts: [1, 2, 3],
   };

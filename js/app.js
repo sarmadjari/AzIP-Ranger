@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   AzIP-Ranger · app.js — UI state, rendering, SVG topology,
+   AzIP-Ranger · app.js, UI state, rendering, SVG topology,
    exports, theming. Pure client-side.
    ═══════════════════════════════════════════════════════════════ */
 (function () {
@@ -15,7 +15,7 @@
   let seq = 100;
   let diagramExpanded = false;
 
-  /* dropdown/value lists live in config.js — safe fallbacks here */
+  /* dropdown/value lists live in config.js, safe fallbacks here */
   const CFG = window.AZIP_CONFIG || {
     defaults: { region: "westeurope", environment: "prod" },
     regions: [], environments: [],
@@ -35,23 +35,23 @@
     return s.length > max ? s.slice(0, max - 1) + "…" : s;
   };
 
-  /* §-references → linked tooltips into Microsoft Learn.
+  /* Section references become linked tooltips into Microsoft Learn.
      Applied AFTER esc() on engine-generated notes/hints.            */
   const MS = "https://learn.microsoft.com/";
   const REFS = {
     "1":   ["Azure Landing Zone design principles", MS + "azure/cloud-adoption-framework/ready/landing-zone/design-principles"],
     "2":   ["CAF: plan for IP addressing", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing"],
     "3":   ["CAF: traditional hub-and-spoke topology", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/traditional-azure-networking-topology"],
-    "3.2": ["Azure DNS Private Resolver — requirements & constraints", MS + "azure/dns/dns-private-resolver-overview"],
-    "4":   ["CAF: plan for IP addressing — spoke sizing", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing"],
-    "4.3": ["VNet peering — gateway transit & forwarded traffic", MS + "azure/virtual-network/virtual-network-peering-overview"],
+    "3.2": ["Azure DNS Private Resolver, requirements & constraints", MS + "azure/dns/dns-private-resolver-overview"],
+    "4":   ["CAF: plan for IP addressing, spoke sizing", MS + "azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing"],
+    "4.3": ["VNet peering, gateway transit & forwarded traffic", MS + "azure/virtual-network/virtual-network-peering-overview"],
     "5":   ["HA NVAs behind Standard Load Balancer", MS + "azure/architecture/networking/guide/network-virtual-appliance-high-availability"],
-    "6":   ["HA NVAs — symmetry, Floating IP, SNAT", MS + "azure/architecture/networking/guide/network-virtual-appliance-high-availability"],
+    "6":   ["HA NVAs, symmetry, Floating IP, SNAT", MS + "azure/architecture/networking/guide/network-virtual-appliance-high-availability"],
     "6.5": ["Azure Firewall SNAT private IP ranges", MS + "azure/firewall/snat-private-range"],
     "7":   ["User-defined routes overview", MS + "azure/virtual-network/virtual-networks-udr-overview"],
-    "8":   ["VPN Gateway settings — BGP & route propagation", MS + "azure/vpn-gateway/vpn-gateway-about-vpn-gateway-settings"],
+    "8":   ["VPN Gateway settings, BGP & route propagation", MS + "azure/vpn-gateway/vpn-gateway-about-vpn-gateway-settings"],
     "9":   ["Network security groups overview", MS + "azure/virtual-network/network-security-groups-overview"],
-    "9.1": ["Azure Bastion — required NSG rules", MS + "azure/bastion/bastion-nsg"],
+    "9.1": ["Azure Bastion, required NSG rules", MS + "azure/bastion/bastion-nsg"],
     "9.6": ["AD DS firewall port requirements", MS + "troubleshoot/windows-server/active-directory/config-firewall-for-ad-domains-and-trusts"],
     "10":  ["Application security groups", MS + "azure/virtual-network/application-security-groups"],
     "11":  ["Private endpoints overview", MS + "azure/private-link/private-endpoint-overview"],
@@ -77,14 +77,12 @@
     }
     return null;
   }
-  /** replace §x.y tokens (already-escaped text) with a linked ⓘ tooltip */
+  /** turn "Section x.y" / "Sections x-y" tokens into a linked ⓘ tooltip (visible text kept) */
   function refLinks(escaped) {
-    return String(escaped).replace(/\s*\(?§[\d][\d.]*(?:\s*[–\/-]\s*§?[\d.]+)*\)?\.?/g, (m) => {
-      const num = (m.match(/§([\d.]+)/) || [])[1];
-      const r = num && refFor(num.replace(/\.$/, ""));
-      const trail = m.trim().endsWith(".") ? "." : "";
-      if (!r) return trail;
-      return `${trail} <a class="ref" href="${r[1]}" target="_blank" rel="noopener noreferrer" title="${esc(r[0])} — Microsoft Learn">ⓘ</a>`;
+    return String(escaped).replace(/\bSections?\s+(\d[\d.]*)(?:\s*-\s*\d[\d.]*)?/g, (m, num) => {
+      const r = refFor(num.replace(/\.$/, ""));
+      if (!r) return m;
+      return `${m} <a class="ref" href="${r[1]}" target="_blank" rel="noopener noreferrer" title="${esc(r[0])} (Microsoft Learn)">ⓘ</a>`;
     });
   }
   const noteHtml = (s) => refLinks(esc(s));
@@ -137,7 +135,7 @@
     state.connectivity.vpn = hasOnprem && $("#conn-vpn").checked;
     state.connectivity.routeServer = $("#conn-rs").checked;
     state.security.arch = ($('input[name="sec-arch"]:checked') || {}).value || "dual";
-    // tiers are state-driven (group rows mutate state directly) — just guarantee shape
+    // tiers are state-driven (group rows mutate state directly), just guarantee shape
     ["ns", "ew"].forEach(k => {
       const t = state.security[k];
       if (!t || !Array.isArray(t.groups) || !t.groups.length) {
@@ -325,8 +323,8 @@
       const gslug = (g.name || (gi === 0 ? k : k + (gi + 1))).toLowerCase().replace(/[^a-z0-9]+/g, "") || k;
       const pillTxt = g.standalone ? "solo" : gi === entryIdx ? "entry" : "#" + (gi + 1);
       const pillCls = g.standalone ? "info" : gi === entryIdx ? "ok" : "neutral";
-      const pillTip = g.standalone ? "Standalone — reached directly (e.g., explicit proxy), not in the chain (VIP .10" + gi + ")"
-        : gi === entryIdx ? "Entry point — route tables send traffic here (VIP .10" + gi + ")"
+      const pillTip = g.standalone ? "Standalone, reached directly (e.g., explicit proxy), not in the chain (VIP .10" + gi + ")"
+        : gi === entryIdx ? "Entry point, route tables send traffic here (VIP .10" + gi + ")"
         : "Chain hop (VIP .10" + gi + ")";
       row.innerHTML =
         `<div class="tier-head">
@@ -341,7 +339,7 @@
            <button class="btn danger-ghost g-del" type="button" aria-label="Remove group ${gi + 1}"${tier.groups.length === 1 ? " disabled" : ""}>✕</button>
          </div>
          <div class="tier-head">
-           <label class="check g-sa" title="Standalone groups sit outside the chain — no UDR points at them; clients reach them directly (explicit proxy pattern)."><input type="checkbox" class="g-alone"${g.standalone ? " checked" : ""}><span>standalone <small>(e.g., explicit proxy — not chained)</small></span></label>
+           <label class="check g-sa" title="Standalone groups sit outside the chain, no UDR points at them; clients reach them directly (explicit proxy pattern)."><input type="checkbox" class="g-alone"${g.standalone ? " checked" : ""}><span>standalone <small>(e.g., explicit proxy, not chained)</small></span></label>
          </div>
          <div class="tier-controls">` +
         (g.kind === "vmss"
@@ -400,7 +398,7 @@
         const g = t.groups[0];
         if (g.kind === "vmss") { el.textContent = `VMSS ${g.min}–${g.max} · VIP .100`; el.className = "pill info"; }
         else if (g.count >= 2) { el.textContent = "HA (ILB) · VIP .100"; el.className = "pill ok"; }
-        else { el.textContent = "Single — SPOF"; el.className = "pill warn"; }
+        else { el.textContent = "Single, SPOF"; el.className = "pill warn"; }
       }
     });
     // supernet hint
@@ -417,7 +415,7 @@
       hint.className = "hint err";
       hint.textContent = p.error;
     }
-    $("#region2-cidr").textContent = plan && plan.region2 ? plan.region2.cidr : "—";
+    $("#region2-cidr").textContent = plan && plan.region2 ? plan.region2.cidr : "-";
     $("#row-headroom").style.display = state.azure.mode === "auto" ? "" : "none";
     // chained Azure Firewall (dual: pick the tier · single: no tier choice)
     const chained = (arch === "dual" || arch === "single") && state.security.azfwAdd;
@@ -425,7 +423,7 @@
     $("#azfw-add-arch").textContent = arch === "single" ? "single" : "dual";
     $("#azfw-tier-row").hidden = !(chained && arch === "dual");
     $("#azfw-chain-hint").hidden = !chained;
-    $("#azfw-chain-badge").textContent = chained && plan && plan.azfw ? `AzFW ${plan.azfw.ip}` : "—";
+    $("#azfw-chain-badge").textContent = chained && plan && plan.azfw ? `AzFW ${plan.azfw.ip}` : "-";
     // firewall position within the chosen tier's chain
     $("#azfw-pos-row").hidden = !chained;
     if (chained) {
@@ -436,9 +434,9 @@
       const nameOf = (g, i) => (g && g.name && g.name.trim()) || `group ${i + 1}`;
       $("#azfw-pos").innerHTML = Array.from({ length: gs.length + 1 }, (_, i) => {
         const pp = i + 1;
-        const lbl = pp === 1 ? `1 — entry (before ${nameOf(gs[0], 0)})`
-          : pp === gs.length + 1 ? `${pp} — last (after ${nameOf(gs[gs.length - 1], gs.length - 1)}, egress side)`
-          : `${pp} — after ${nameOf(gs[pp - 2], pp - 2)}`;
+        const lbl = pp === 1 ? `1, entry (before ${nameOf(gs[0], 0)})`
+          : pp === gs.length + 1 ? `${pp}, last (after ${nameOf(gs[gs.length - 1], gs.length - 1)}, egress side)`
+          : `${pp}, after ${nameOf(gs[pp - 2], pp - 2)}`;
         return `<option value="${pp}"${pp === cur ? " selected" : ""}>${esc(lbl)}</option>`;
       }).join("");
     }
@@ -488,7 +486,7 @@
     $("#summary-cards").innerHTML =
       statCard("Architecture", `<small>${esc(s.arch)}</small>`, hops.join(" · ") || "system routing only") +
       statCard("Hybrid", `<small>${esc(s.hybrid)}</small>`, `${s.onpremCount} on-prem prefix${s.onpremCount === 1 ? "" : "es"}`) +
-      statCard("Hub VNet", plan.hub.prefixes.length ? `${fmt(plan.hub.declared)}<small> addrs</small>` : "—",
+      statCard("Hub VNet", plan.hub.prefixes.length ? `${fmt(plan.hub.declared)}<small> addrs</small>` : "-",
         `<code>${esc(plan.hub.name)}</code>` + (plan.hub.prefixes.length > 1 ? ` · 3 × /19` : "")) +
       statCard("Spokes", String(s.totalSpokes), `region <code>${esc(s.region)}</code> · ${esc(s.mode === "reference" ? "v5.0 layout" : "auto right-sized")}`, true);
   }
@@ -517,7 +515,7 @@
       $("#hub-plan").innerHTML = `<p class="hint">No hub components selected.</p>`;
       return;
     }
-    let html = `<p class="hint"><code>${esc(h.name)}</code> · <code>addressSpace.addressPrefixes</code> = ${h.prefixes.map(p => `<code>${p}</code>`).join(" + ")} — ${fmt(h.declared)} addresses declared, ${fmt(h.subnetted)} subnetted${plan.mode === "reference" ? " (remaining plan space stays unassigned per CAF — never declare an idle /16)" : ""}.</p>`;
+    let html = `<p class="hint"><code>${esc(h.name)}</code> · <code>addressSpace.addressPrefixes</code> = ${h.prefixes.map(p => `<code>${p}</code>`).join(" + ")}, ${fmt(h.declared)} addresses declared, ${fmt(h.subnetted)} subnetted${plan.mode === "reference" ? " (remaining plan space stays unassigned per CAF, never declare an idle /16)" : ""}.</p>`;
 
     const sections = plan.mode === "reference"
       ? [["conn", "Connectivity"], ["shared", "Shared Services"], ["mgmt", "Management"]]
@@ -526,9 +524,9 @@
     sections.forEach(([key, label], i) => {
       const subs = h.subnets.filter(s => !key || s.section === key);
       if (!subs.length) return;
-      if (key) rows += `<tr class="row-section"><td colspan="6">${label} — <span class="mono">${esc(h.sections[i] ? h.sections[i].cidr : "")}</span></td></tr>`;
+      if (key) rows += `<tr class="row-section"><td colspan="6">${label}, <span class="mono">${esc(h.sections[i] ? h.sections[i].cidr : "")}</span></td></tr>`;
       rows += subs.map(s =>
-        `<tr class="${s.reserved ? "row-reserved" : ""}"><td>${esc(s.name)}${s.delegation ? ` <span class="muted">⌁ ${esc(s.delegation)}</span>` : ""}</td><td class="mono">${s.cidr}</td><td class="mono">${s.reserved ? "—" : fmt(s.usable)}</td><td>${esc(s.purpose)}</td><td class="mono">${esc(s.rt)}</td><td class="mono">${esc(s.nsg)}</td></tr>`
+        `<tr class="${s.reserved ? "row-reserved" : ""}"><td>${esc(s.name)}${s.delegation ? ` <span class="muted">⌁ ${esc(s.delegation)}</span>` : ""}</td><td class="mono">${s.cidr}</td><td class="mono">${s.reserved ? "-" : fmt(s.usable)}</td><td>${esc(s.purpose)}</td><td class="mono">${esc(s.rt)}</td><td class="mono">${esc(s.nsg)}</td></tr>`
       ).join("");
     });
     html += tbl(["Subnet", "CIDR", "Usable", "Purpose", "Route Table", "NSG"], rows);
@@ -537,7 +535,7 @@
       html += `<h3 style="margin-top:14px">Internal Load Balancer VIPs</h3>`;
       html += tbl(["ILB", "VIP", "Subnet", "Backend Pool", "Purpose"],
         plan.ilbs.map(l => `<tr><td>${esc(l.name)}</td><td class="mono">${l.vip}</td><td>${esc(l.subnet)}</td><td>${esc(l.pool)}</td><td class="muted">${esc(l.purpose)}</td></tr>`).join(""));
-      html += `<p class="hint" style="margin-top:6px">Standard SKU with <b>HA Ports</b> + Floating IP; configure each VIP as a loopback on every NVA. <a class="ref" href="${MS}azure/architecture/networking/guide/network-virtual-appliance-high-availability" target="_blank" rel="noopener noreferrer" title="HA NVAs behind Standard Load Balancer — Microsoft Learn">ⓘ</a> 5-tuple session persistence for stateful inspection.</p>`;
+      html += `<p class="hint" style="margin-top:6px">Standard SKU with <b>HA Ports</b> + Floating IP; configure each VIP as a loopback on every NVA. <a class="ref" href="${MS}azure/architecture/networking/guide/network-virtual-appliance-high-availability" target="_blank" rel="noopener noreferrer" title="HA NVAs behind Standard Load Balancer, Microsoft Learn">ⓘ</a> 5-tuple session persistence for stateful inspection.</p>`;
     }
 
     if (plan.nva && plan.nva.tiers.length) {
@@ -549,17 +547,17 @@
           const head = g.vmss
             ? `VMSS Flex · autoscale ${g.scale.min}–${g.scale.max} behind ${esc(g.ilbName)} (VIP ${g.hop.ip})`
             : `${g.count}× ${g.ha ? `active-active behind ${esc(g.ilbName)} (VIP ${g.hop.ip})` : "single instance · next hop = NIC IP"}`;
-          rows2 += `<tr class="row-section"><td colspan="5">${esc(g.display)} — ${esc(t.label)} tier · ${pos}${head}</td></tr>`;
+          rows2 += `<tr class="row-section"><td colspan="5">${esc(g.display)}, ${esc(t.label)} tier · ${pos}${head}</td></tr>`;
           if (g.vmss) {
             rows2 += `<tr><td class="mono">${esc(g.vmssName)}</td><td class="mono">dynamic <span class="muted">${g.extSubnet || t.extSubnet}</span></td><td class="mono">dynamic <span class="muted">${g.intSubnet || t.intSubnet}</span></td><td class="mono">dynamic</td><td class="mono">${g.hop.ip} <span class="muted">via VMSS profile</span></td></tr>`;
           } else {
             rows2 += g.instances.map(x =>
-              `<tr><td class="mono">${esc(x.name)}</td><td class="mono">${x.ext} <span class="muted">${g.extSubnet || t.extSubnet}</span></td><td class="mono">${x.int} <span class="muted">${g.intSubnet || t.intSubnet}</span></td><td class="mono">${x.mgmt || "—"}</td><td class="mono">${x.loopbacks.join(", ") || "—"}</td></tr>`).join("");
+              `<tr><td class="mono">${esc(x.name)}</td><td class="mono">${x.ext} <span class="muted">${g.extSubnet || t.extSubnet}</span></td><td class="mono">${x.int} <span class="muted">${g.intSubnet || t.intSubnet}</span></td><td class="mono">${x.mgmt || "-"}</td><td class="mono">${x.loopbacks.join(", ") || "-"}</td></tr>`).join("");
           }
         });
       });
-      html += tbl(["NVA", "External NIC", "Internal NIC", "Mgmt NIC", "Loopback VIP (§6.4)"], rows2);
-      html += `<p class="hint" style="margin-top:6px">VM tiers get static NIC IPs from the first usable host (.4, .5, .6…). VMSS tiers receive dynamic NICs from the same subnets — the ILB VIP is the only stable address, so routing never changes on scale events.</p>`;
+      html += tbl(["NVA", "External NIC", "Internal NIC", "Mgmt NIC", "Loopback VIP (Section 6.4)"], rows2);
+      html += `<p class="hint" style="margin-top:6px">VM tiers get static NIC IPs from the first usable host (.4, .5, .6…). VMSS tiers receive dynamic NICs from the same subnets, the ILB VIP is the only stable address, so routing never changes on scale events.</p>`;
     }
     $("#hub-plan").innerHTML = html;
   }
@@ -567,7 +565,7 @@
   function renderSpokes() {
     const wrap = $("#spoke-plan");
     const allAllocs = plan.pools.flatMap(p => p.allocs.map(a => ({ ...a, pool: p.name })));
-    if (!allAllocs.length) { wrap.innerHTML = `<p class="hint">No spokes yet — add workloads in the Spoke VNets card.</p>`; return; }
+    if (!allAllocs.length) { wrap.innerHTML = `<p class="hint">No spokes yet, add workloads in the Spoke VNets card.</p>`; return; }
     let html = "";
 
     plan.pools.filter(p => p.allocs.length).forEach(p => {
@@ -579,9 +577,9 @@
     html += tbl(["VNet (CAF name)", "Workload", "Env", "Size", "CIDR", "Route table"],
       allAllocs.slice(0, MAXROWS).map(a =>
         `<tr><td class="mono">${esc(a.name)}</td><td>${esc(a.label)}</td><td>${esc(a.env)}</td><td>${esc(a.size)}</td><td class="mono">${a.cidr}</td><td class="mono">${esc(a.rtName)}</td></tr>`).join(""));
-    if (allAllocs.length > MAXROWS) html += `<p class="hint">…and ${fmt(allAllocs.length - MAXROWS)} more — the CSV / Markdown exports contain the full list.</p>`;
+    if (allAllocs.length > MAXROWS) html += `<p class="hint">…and ${fmt(allAllocs.length - MAXROWS)} more, the CSV / Markdown exports contain the full list.</p>`;
 
-    // template breakdowns — worked example per template kind with real CAF names
+    // template breakdowns, worked example per template kind with real CAF names
     const kinds = [["std22", "Medium /22 spoke template"], ["std24", "Small /24 spoke template"], ["large20", "Large /20 spoke"]];
     kinds.forEach(([k, label]) => {
       const sample = allAllocs.find(a => a.template === k);
@@ -591,10 +589,10 @@
         tbl(["Subnet", "CIDR", "Usable", "Purpose", "NSG"],
           t.map(s => {
             const snet = s.reserved || s.tier.startsWith("(") ? s.tier : `snet-${s.tier}-${sample.nameBase}`;
-            const nsg = s.reserved || s.tier.startsWith("(") ? "—" : `nsg-${s.tier}-${sample.nameBase}`;
-            return `<tr class="${s.reserved ? "row-reserved" : ""}"><td class="mono">${esc(snet)}</td><td class="mono">${C.cidr(sample.base + s.off, s.prefix)}</td><td class="mono">${s.reserved || s.prefix === 20 ? "—" : fmt(C.usable(s.prefix))}</td><td>${esc(s.purpose)}</td><td class="mono">${esc(nsg)}</td></tr>`;
+            const nsg = s.reserved || s.tier.startsWith("(") ? "-" : `nsg-${s.tier}-${sample.nameBase}`;
+            return `<tr class="${s.reserved ? "row-reserved" : ""}"><td class="mono">${esc(snet)}</td><td class="mono">${C.cidr(sample.base + s.off, s.prefix)}</td><td class="mono">${s.reserved || s.prefix === 20 ? "-" : fmt(C.usable(s.prefix))}</td><td>${esc(s.purpose)}</td><td class="mono">${esc(nsg)}</td></tr>`;
           }).join("")) +
-        `<p class="hint" style="margin-top:8px">All subnets associate <code>${esc(sample.rtName)}</code> (the RT-Spoke-Workloads route set).${k === "std22" ? ` Effective usable across the five subnets ≈ 487. <a class="ref" href="${MS}azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing" target="_blank" rel="noopener noreferrer" title="CAF: plan for IP addressing — Azure reserves 5 IPs per subnet">ⓘ</a>` : ""}</p>` +
+        `<p class="hint" style="margin-top:8px">All subnets associate <code>${esc(sample.rtName)}</code> (the RT-Spoke-Workloads route set).${k === "std22" ? ` Effective usable across the five subnets ≈ 487. <a class="ref" href="${MS}azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing" target="_blank" rel="noopener noreferrer" title="CAF: plan for IP addressing, Azure reserves 5 IPs per subnet">ⓘ</a>` : ""}</p>` +
         `</div></details>`;
     });
     wrap.innerHTML = html;
@@ -620,7 +618,7 @@
   function renderNsgs() {
     const wrap = $("#nsg-list");
     if (!plan.nsgs.length) {
-      wrap.innerHTML = `<div class="panel"><p class="hint">No NSGs generated — enable hub services or spokes.</p></div>`;
+      wrap.innerHTML = `<div class="panel"><p class="hint">No NSGs generated, enable hub services or spokes.</p></div>`;
     } else {
       wrap.innerHTML = plan.nsgs.map(n => {
         const inbound = n.rules.filter(r => r.dir === "Inbound");
@@ -634,7 +632,7 @@
     }
     $("#asg-table").innerHTML = tbl(["ASG", "Purpose", "Example members"],
       plan.asgs.map(a => `<tr><td class="mono">${esc(a.name)}</td><td>${esc(a.purpose)}</td><td class="muted">${esc(a.members)}</td></tr>`).join("")) +
-      `<p class="hint" style="margin-top:6px">ASGs give dynamic membership and self-documenting rules; same region as the NIC, no cross-VNet mixing in a single rule (§10).</p>`;
+      `<p class="hint" style="margin-top:6px">ASGs give dynamic membership and self-documenting rules; same region as the NIC, no cross-VNet mixing in a single rule (Section 10).</p>`;
   }
 
   function renderOps() {
@@ -649,12 +647,12 @@
     const d = plan.dns;
     $("#dns-pe").innerHTML = d
       ? tbl(["Endpoint", "Static IP", "Role"], [
-          `<tr><td>DNS Resolver — Inbound</td><td class="mono">${d.inbound || "—"}</td><td class="muted">Spoke VNet DNS server + on-prem conditional-forwarder target</td></tr>`,
-          `<tr><td>DNS Resolver — Outbound</td><td class="mono">${d.outbound || "—"}</td><td class="muted">Forwards on-prem domains out via the firewall</td></tr>`,
+          `<tr><td>DNS Resolver, Inbound</td><td class="mono">${d.inbound || "-"}</td><td class="muted">Spoke VNet DNS server + on-prem conditional-forwarder target</td></tr>`,
+          `<tr><td>DNS Resolver, Outbound</td><td class="mono">${d.outbound || "-"}</td><td class="muted">Forwards on-prem domains out via the firewall</td></tr>`,
         ].join("")) +
         `<p class="hint" style="margin-top:8px"><b>Common privatelink zones:</b> ${d.zones.map(z => `<code>${esc(z)}</code>`).join(" ")}</p>` +
         d.notes.map(n => `<p class="hint" style="margin-top:6px">• ${noteHtml(n)}</p>`).join("")
-      : `<p class="hint">DNS Private Resolver disabled — point spokes at your DNS servers and link privatelink zones to wherever resolution happens. Private Endpoint subnets still require <code>privateEndpointNetworkPolicies = Enabled</code> for NSG enforcement. <a class="ref" href="${MS}azure/private-link/private-endpoint-overview" target="_blank" rel="noopener noreferrer" title="Private endpoints overview — Microsoft Learn">ⓘ</a></p>`;
+      : `<p class="hint">DNS Private Resolver disabled, point spokes at your DNS servers and link privatelink zones to wherever resolution happens. Private Endpoint subnets still require <code>privateEndpointNetworkPolicies = Enabled</code> for NSG enforcement. <a class="ref" href="${MS}azure/private-link/private-endpoint-overview" target="_blank" rel="noopener noreferrer" title="Private endpoints overview, Microsoft Learn">ⓘ</a></p>`;
   }
 
   /* ───────────────────── SVG topology diagram ─────────────────
@@ -676,7 +674,7 @@
     const spX = 624, spW = 188;
     const CH_LABEL = 6.6, CH_SUB = 6.0, CH_TINY = 5.4;   // px per char approximations
 
-    /* chips — each may carry 1 or 2 subtitle lines */
+    /* chips, each may carry 1 or 2 subtitle lines */
     const chips = [];
     const chipW = hubW - 28;
     const subBudget = chipW - 24;
@@ -692,19 +690,19 @@
       const l2 = txt.slice(cut).replace(/^[\s·]+/, "").trim();
       return [l1, fitPx(l2, subBudget, CH_SUB)];
     };
-    /* cls: "" | "dg-ns" | "dg-ew" — colors the chip border per traffic plane */
+    /* cls: "" | "dg-ns" | "dg-ew", colors the chip border per traffic plane */
     const addChip = (label, sub, cls, opts) => chips.push({
       label: fitPx(label, chipW - 28, CH_LABEL),
       subs: sub ? wrapSub(sub) : [],
       cls: cls || "",
-      tip: sub ? `${label} — ${sub}` : label,
+      tip: sub ? `${label}, ${sub}` : label,
       egress: !!(opts && opts.egress),
       egName: (opts && opts.egName) || "",
     });
 
     if (state.connectivity.expressRoute || state.connectivity.vpn) {
       const g = hubSubs.find(x => x.key === "gw");
-      addChip("Gateway subnet — " + [state.connectivity.expressRoute && "ER", state.connectivity.vpn && "VPN"].filter(Boolean).join(" + "), g ? g.cidr : "");
+      addChip("Gateway subnet, " + [state.connectivity.expressRoute && "ER", state.connectivity.vpn && "VPN"].filter(Boolean).join(" + "), g ? g.cidr : "");
     }
     if (plan.nva.tiers.length) {
       const grpTxt = (g) => g.vmss ? `VMSS ${g.scale.min}–${g.scale.max}` : `${g.count}× ${g.ha ? "HA" : "single"}`;
@@ -720,7 +718,7 @@
         seq.forEach((item, si) => {
           const last = si === seq.length - 1;
           const suffix = !last ? " → next hop"
-            : arch === "single" ? " — all inspection"
+            : arch === "single" ? ", all inspection"
             : (t.key === "ns" || t.key === "fw" ? " → Internet" : " → spokes/on-prem");
           const isEgress = last && (t.key === "ns" || t.key === "fw");
           const opts = isEgress ? { egress: true, egName: item.azfw ? "Azure Firewall" : item.g.display } : null;
@@ -731,11 +729,11 @@
             addChip(`${si > 0 ? "↳ " : ""}${g.display} (${grpTxt(g)})${suffix}`, `${g.hop.label} ${g.hop.ip}`, cls, opts);
           }
         });
-        solosG.forEach(g => addChip(`${g.display} (${grpTxt(g)}) · standalone`, `${g.hop.label} ${g.hop.ip} — direct access`, cls));
+        solosG.forEach(g => addChip(`${g.display} (${grpTxt(g)}) · standalone`, `${g.hop.label} ${g.hop.ip}, direct access`, cls));
       });
     }
     if (plan.azfw && !plan.azfw.chain) {
-      addChip(`Azure Firewall — ${plan.azfw.role}`, `private IP ${plan.azfw.ip}`, "", arch === "azfw" ? { egress: true, egName: "Azure Firewall" } : null);
+      addChip(`Azure Firewall, ${plan.azfw.role}`, `private IP ${plan.azfw.ip}`, "", arch === "azfw" ? { egress: true, egName: "Azure Firewall" } : null);
     }
     const svcBits = [state.services.dns && "DNS Resolver", state.services.dc && "AD DS", state.services.bastion && "Bastion", state.services.jump && "Jump", state.services.mon && "Monitor"].filter(Boolean);
     if (svcBits.length) addChip("Shared services", svcBits.join(" · "));
@@ -777,7 +775,7 @@
       <text x="${24 + leftW / 2}" y="${netY + 19}" text-anchor="middle" class="dg-label">Internet</text>
       <text x="${24 + leftW / 2}" y="${netY + 33}" text-anchor="middle" class="dg-tiny">${esc(fitPx(netSub, leftW - 12, CH_TINY))}</text></g>`;
     let leftLines = egressY != null
-      ? `<g><title>Internet egress path — exits at ${esc(egressName || "")}</title><path class="dg-line dashed" d="M${24 + leftW} ${netY + netH / 2} H ${hubX}"></path></g>`
+      ? `<g><title>Internet egress path, exits at ${esc(egressName || "")}</title><path class="dg-line dashed" d="M${24 + leftW} ${netY + netH / 2} H ${hubX}"></path></g>`
       : "";
     if (s.onpremCount) {
       const opH = 34 + Math.min(plan.onprem.length, 3) * 14 + (plan.onprem.length > 3 ? 14 : 0);
@@ -790,14 +788,14 @@
       const midX = (gapL + gapR) / 2;
       const er = state.connectivity.expressRoute, vpn = state.connectivity.vpn;
       if (er && vpn) {
-        leftLines += `<g><title>ExpressRoute — primary path</title>
+        leftLines += `<g><title>ExpressRoute, primary path</title>
             <path class="dg-line accent" d="M${gapL} ${opY + 20} H ${gapR}"></path>
             <text x="${midX}" y="${opY + 14}" text-anchor="middle" class="dg-tiny">${esc(fitPx("ER", gapR - gapL - 10, CH_TINY))}</text></g>
-          <g><title>VPN — backup path</title>
+          <g><title>VPN, backup path</title>
             <path class="dg-line accent dashed" d="M${gapL} ${opY + 40} H ${gapR}"></path>
             <text x="${midX}" y="${opY + 54}" text-anchor="middle" class="dg-tiny">${esc(fitPx("VPN · backup", gapR - gapL - 10, CH_TINY))}</text></g>`;
       } else if (er || vpn) {
-        leftLines += `<g><title>${er ? "ExpressRoute" : "VPN"} — primary path</title>
+        leftLines += `<g><title>${er ? "ExpressRoute" : "VPN"}, primary path</title>
             <path class="dg-line accent" d="M${gapL} ${opY + 26} H ${gapR}"></path>
             <text x="${midX}" y="${opY + 19}" text-anchor="middle" class="dg-tiny">${esc(fitPx(er ? "ER" : "VPN", gapR - gapL - 10, CH_TINY))}</text></g>`;
       }
@@ -815,18 +813,18 @@
     });
     if (allSpokes.length > COLLAPSED) {
       const y = spStart + spokes.length * 52 + 16;
-      const txt = diagramExpanded ? "− show fewer spokes" : `+${fmt(more)} more spoke${more === 1 ? "" : "s"} — show all`;
+      const txt = diagramExpanded ? "− show fewer spokes" : `+${fmt(more)} more spoke${more === 1 ? "" : "s"}, show all`;
       right += `<text id="dg-more" x="${spX + spW / 2}" y="${y}" text-anchor="middle" class="dg-link" role="button" tabindex="0">${esc(txt)}</text>`;
     }
     if (!allSpokes.length) right += `<text x="${spX + spW / 2}" y="${spStart + 24}" text-anchor="middle" class="dg-tiny">no spokes yet</text>`;
 
     const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Network topology diagram">
       ${leftLines}${rightLines}
-      <rect x="${hubX}" y="${hubY}" width="${hubW}" height="${hubH}" rx="10" class="dg-box dg-hub"><title>${esc(plan.hub.name)} — ${esc(plan.hub.prefixes.join(" + "))}</title></rect>
+      <rect x="${hubX}" y="${hubY}" width="${hubW}" height="${hubH}" rx="10" class="dg-box dg-hub"><title>${esc(plan.hub.name)}, ${esc(plan.hub.prefixes.join(" + "))}</title></rect>
       <text x="${hubX + 14}" y="${hubY + 18}" class="dg-label">${esc(fitPx("Hub VNet · " + plan.hub.name, hubW - (arch === "dual" ? 130 : 100), CH_LABEL))}<title>${esc(plan.hub.name)}</title></text>
       <text x="${hubX + hubW - 14}" y="${hubY + 18}" text-anchor="end" class="dg-sub">${arch === "dual" ? `<tspan class="dgc-ns">●</tspan> N-S <tspan class="dgc-ew">●</tspan> E-W` : esc(plan.hub.prefixes[0] || "") + (plan.hub.prefixes.length > 1 ? " +2" : "")}</text>
       ${inner}${left}${right}
-      <text x="${spX + spW / 2}" y="${Math.max(16, spStart - 12)}" text-anchor="middle" class="dg-tiny">${esc(fitPx(`spokes — peered, ${arch !== "none" ? "transit via hub inspection" : "no transit"}`, spW + 40, CH_TINY))}</text>
+      <text x="${spX + spW / 2}" y="${Math.max(16, spStart - 12)}" text-anchor="middle" class="dg-tiny">${esc(fitPx(`spokes, peered, ${arch !== "none" ? "transit via hub inspection" : "no transit"}`, spW + 40, CH_TINY))}</text>
     </svg>`;
     $("#diagram").innerHTML = svg;
     const moreEl = $("#dg-more");
