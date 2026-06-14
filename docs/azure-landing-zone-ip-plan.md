@@ -970,81 +970,55 @@ Every invariant in this document that a workload team could accidentally violate
 
 ### 13.1 Spoke-to-Internet (Outbound)
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────┐
-│ Spoke VM    │────▶│ ILB-NS-Outbnd│────▶│ NS NVA       │────▶│ Internet │
-│ 10.4.x.x    │     │ 10.0.3.100   │     │ NAT + Inspect│     │          │
-└─────────────┘     └──────────────┘     └──────────────┘     └──────────┘
-      │                    
-      │ UDR: 0.0.0.0/0     
-      │ → 10.0.3.100       
-      ▼                    
+```mermaid
+flowchart LR
+    VM["Spoke VM<br/>10.4.x.x"] -->|"UDR: 0.0.0.0/0<br/>→ 10.0.3.100"| ILB["ILB-NS-Outbound<br/>10.0.3.100"]
+    ILB --> NVA["NS NVA<br/>NAT + Inspect"]
+    NVA --> NET["Internet"]
 ```
 
 ### 13.2 Spoke-to-Spoke (East-West)
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-│ Spoke A VM  │────▶│ ILB-EW-Outbnd│────▶│ EW NVA       │────▶│ Spoke B VM  │
-│ 10.4.0.x    │     │ 10.0.5.100   │     │ SNAT to      │     │ 10.4.4.x    │
-│             │     │              │     │ 10.0.5.x     │     │             │
-└─────────────┘     └──────────────┘     └──────────────┘     └─────────────┘
-      │                    │                    │                    │
-      │ UDR: 10.4.0.0/14   │                    │ VNet peering       │
-      │ → 10.0.5.100       │                    │ (system routes)    │
-      ▼                    ▼                    ▼                    ▼
-                                                                     
-┌─────────────────────────────────────────────────────────────────────────┐
-│ Return Path: Spoke B replies to 10.0.5.x (NVA's SNAT IP)               │
-│ UDR: 10.0.5.0/24 → Virtual Network (bypasses ILB, goes direct to NVA)  │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A["Spoke A VM<br/>10.4.0.x"] -->|"UDR: 10.4.0.0/14<br/>→ 10.0.5.100"| ILB["ILB-EW-Outbound<br/>10.0.5.100"]
+    ILB --> NVA["EW NVA<br/>SNAT to 10.0.5.x"]
+    NVA -->|"VNet peering<br/>(system routes)"| B["Spoke B VM<br/>10.4.4.x"]
+    B -.->|"Return path: replies to 10.0.5.x<br/>UDR 10.0.5.0/24 → Virtual Network<br/>(bypasses ILB, direct to NVA)"| NVA
 ```
 
 > **Key**: The `To-NVA-Internal-Direct` route in `RT-Spoke-Workloads` ensures return traffic goes directly to the originating NVA instance, preserving session state in Active-Active scenarios.
 
 ### 13.3 On-Premises to Spoke
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-│ On-Premises │────▶│ VPN/ER GW    │────▶│ ILB-EW-Outbnd│────▶│ EW NVA       │────▶│ Spoke VM    │
-│ 192.168.x.x │     │ GatewaySubnet│     │ 10.0.5.100   │     │ Inspect+SNAT │     │ 10.4.x.x    │
-└─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └─────────────┘
-      │                    │                    │                    │
-      │ ExpressRoute/VPN   │ RT-GatewaySubnet   │ HA Ports           │ VNet peering
-      │                    │ 10.4.0.0/14        │                    │ (system routes)
-      │                    │ → 10.0.5.100       │                    │
-      ▼                    ▼                    ▼                    ▼
+```mermaid
+flowchart LR
+    OP["On-Premises<br/>192.168.x.x"] -->|"ExpressRoute / VPN"| GW["VPN/ER GW<br/>GatewaySubnet"]
+    GW -->|"RT-GatewaySubnet<br/>10.4.0.0/14 → 10.0.5.100"| ILB["ILB-EW-Outbound<br/>10.0.5.100"]
+    ILB -->|"HA Ports"| NVA["EW NVA<br/>Inspect + SNAT"]
+    NVA -->|"VNet peering<br/>(system routes)"| VM["Spoke VM<br/>10.4.x.x"]
 ```
 
 > **Critical**: `RT-GatewaySubnet` (Section 7.0) must be associated with GatewaySubnet for this flow to work. Without it, on-premises traffic reaches spokes directly, bypassing NVA inspection, violating Zero Trust.
 
 ### 13.4 Platform-to-Spoke
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-│ DNS Resolver│────▶│ RT-Platform  │────▶│ ILB-EW-Outbnd│────▶│ Spoke VM    │
-│ 10.0.32.x   │     │ Workloads    │     │ 10.0.5.100   │     │ 10.4.x.x    │
-└─────────────┘     └──────────────┘     └──────────────┘     └─────────────┘
-      │                    │                    │
-      │ UDR: 10.4.0.0/14   │                    │ EW NVA
-      │ → 10.0.5.100       │                    │ Inspection
-      ▼                    ▼                    ▼
+```mermaid
+flowchart LR
+    DNS["DNS Resolver<br/>10.0.32.x"] -->|"UDR: 10.4.0.0/14<br/>→ 10.0.5.100"| RT["RT-Platform-Workloads"]
+    RT --> ILB["ILB-EW-Outbound<br/>10.0.5.100"]
+    ILB -->|"EW NVA inspection"| VM["Spoke VM<br/>10.4.x.x"]
 ```
 
 ### 13.5 DNS Resolution Flow
 
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌─────────────┐
-│ Spoke VM    │────▶│ DNS Inbound  │────▶│ Azure DNS    │────▶│ Private DNS │
-│ 10.4.x.x    │     │ 10.0.32.4    │     │              │     │ Zones       │
-└─────────────┘     └──────────────┘     └──────────────┘     └─────────────┘
-      │                                        │
-      │ DNS Query                              │ If not Azure DNS
-      │                                        ▼
-                                        ┌──────────────┐
-                                        │ DNS Outbound │──▶ On-Prem DNS
-                                        │ 10.0.32.20   │    or External
-                                        └──────────────┘
+```mermaid
+flowchart LR
+    VM["Spoke VM<br/>10.4.x.x"] -->|"DNS query"| IN["DNS Inbound<br/>10.0.32.4"]
+    IN --> AZ["Azure DNS"]
+    AZ --> PZ["Private DNS Zones"]
+    AZ -->|"If not Azure DNS"| OUT["DNS Outbound<br/>10.0.32.20"]
+    OUT --> EXT["On-Prem DNS<br/>or External"]
 ```
 
 ---
