@@ -22,7 +22,7 @@
   "use strict";
 
   var V = {
-    app:         "2.7.4",  // AzIP-Ranger tool / engine release (matches ?v= in index.html)
+    app:         "2.8.0",  // AzIP-Ranger tool / engine release (matches ?v= in index.html)
     ipPlan:      "5.2",    // docs/azure-landing-zone-ip-plan.md
     designGuide: "1.1",    // docs/azure-landing-zone-network-design-guide.md
     repoUrl:     "https://github.com/sarmadjari/AzIP-Ranger",

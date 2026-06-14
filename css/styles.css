@@ -134,10 +134,18 @@ h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
 }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .brand-mark { flex: none; }
-.brand-text h1 { font-size: 15px; letter-spacing: -.01em; }
-.brand-text h1 span { color: var(--fg-muted); font-weight: 500; }
-.brand-text p { margin: 0; font-size: 11.5px; color: var(--fg-subtle); }
+.brand-text { min-width: 0; }
+.brand-text h1 {
+  font-size: 15px; letter-spacing: -.01em;
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  min-width: 0;
+}
+.brand-text h1 .brand-sub { color: var(--fg-muted); font-weight: 500; }
+.brand-text .brand-tag { margin: 0; font-size: 11.5px; color: var(--fg-subtle); }
+.ver { font-size: 11px; opacity: .65; font-weight: 500; white-space: nowrap; }
 .topbar-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+.btn-label { display: inline; }
+
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn {
@@ -560,6 +568,89 @@ details.block .block-body > .hint { margin: 8px 0; }
   z-index: 90; max-width: min(90vw, 480px);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ════════════════════════════════════════════════════════════
+   Responsive · mobile-first overrides (desktop is the base above)
+   Breakpoints: 1080 tablet · 900 · 720 phone · 560 small phone
+   ════════════════════════════════════════════════════════════ */
+
+/* Tablet: single column, tighter gutters */
+@media (max-width: 1080px) {
+  .layout { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+}
+
+/* Drop the long tagline before the header gets cramped */
+@media (max-width: 900px) {
+  .brand-text .brand-tag { display: none; }
+}
+
+/* Phones / small tablets */
+@media (max-width: 720px) {
+  .topbar-inner { padding: 9px 12px; gap: 10px; }
+  .brand { gap: 9px; }
+  .brand-text h1 { font-size: 14px; }
+  .brand-text h1 .brand-sub { display: none; }          /* keep title + version badge */
+  .topbar-actions { gap: 3px; }
+  /* Load / Save / Reset become icon-only (labels visually hidden, still in a11y tree) */
+  .topbar-actions .btn .btn-label {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .topbar-actions .btn.ghost { padding: 8px; }
+
+  .layout { padding: 12px; gap: 14px; }
+  .config { gap: 12px; }
+
+  /* Tabs scroll horizontally instead of stacking into rows */
+  .tabs {
+    flex-wrap: nowrap; gap: 0;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    top: 50px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; padding: 11px 14px; }
+
+  /* Stacking grids */
+  .arch-grid { grid-template-columns: 1fr; }
+  .spoke-grid { grid-template-columns: 1fr; }
+  .cards-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+
+  /* On-prem row: name spans full width, CIDR + delete below */
+  .onprem-row { grid-template-columns: minmax(0,1fr) 40px; }
+  .onprem-row input[data-f="name"] { grid-column: 1 / -1; }
+
+  /* Spoke row: name full width, then env + size + delete */
+  .spoke-row { grid-template-columns: minmax(0,1fr) minmax(0,1.15fr) 40px; }
+  .spoke-row input[data-f="name"] { grid-column: 1 / -1; }
+
+  /* Roomier delete tap targets inside dynamic rows */
+  .onprem-row .danger-ghost, .spoke-row .danger-ghost { padding: 9px 8px; }
+
+  /* Bigger touch targets; 16px inputs prevent iOS focus-zoom */
+  input[type="text"], input[type="number"], select { font-size: 16px; padding: 9px 11px; }
+  .onprem-row input, .spoke-row input, .group-row .g-name, .nva-names input { font-size: 16px; }
+  .btn { padding: 9px 13px; }
+  .btn.icon-btn { padding: 9px; }
+  .check { padding: 4px 0; }
+  .check input { width: 17px; height: 17px; }
+
+  /* Export buttons full-width for easy tapping */
+  .export-grid { flex-direction: column; }
+  .export-grid .btn { width: 100%; justify-content: center; }
+
+  .panel { padding: 13px 13px; }
+}
+
+/* Small phones */
+@media (max-width: 560px) {
+  .card-body.two-col { grid-template-columns: 1fr; }
+  .brand-text h1 .ver { font-size: 10.5px; }
+  .cards-row { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  h1, h2, h3 { overflow-wrap: anywhere; }
+}
 
 /* print */
 @media print {
