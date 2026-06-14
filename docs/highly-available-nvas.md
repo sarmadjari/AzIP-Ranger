@@ -148,9 +148,3 @@ These are the current Microsoft Learn pages this guide is aligned to:
 - [What is Azure Firewall?](https://learn.microsoft.com/azure/firewall/overview) — native HA, autoscale, and stateful inspection.
 - [Design a secure hub-spoke network](https://learn.microsoft.com/azure/networking/cross-service-scenarios/design-secure-hub-spoke-network) — reference topology for transit and inspection.
 - [How Azure selects routes for traffic routing](https://learn.microsoft.com/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing) — longest-prefix-match and the User > BGP > System priority that governs chained-NVA forwarding.
-
-## Change Log
-
-| Version | Date | Notes |
-|---|---|---|
-| 1.0 | 2026-06-14 | Initial release. Documents the four Microsoft HA NVA patterns, the native-vs-third-party decision, appliance-layer symmetry mechanisms (SNAT / active-passive / session sync), traffic-scope guidance (E-W, N-S, both), chained-NVA reasoning, decision tree, and an implementation checklist. Verified against live Microsoft Learn. Aligns with the [Network Design Guide](azure-landing-zone-network-design-guide.md) (*Inspection and Symmetry Requirements*) and the [IP Plan](azure-landing-zone-ip-plan.md) (NVA & load-balancer configuration and group chains). |

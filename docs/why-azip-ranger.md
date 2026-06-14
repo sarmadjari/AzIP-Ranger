@@ -68,7 +68,7 @@ This is where the tool earns its keep, and it works on two levels:
 - [IP Plan Section 7](azure-landing-zone-ip-plan.md) is the complete RT catalog;
   [Section 8](azure-landing-zone-ip-plan.md) is the BGP-propagation guardrail table;
   [Section 9](azure-landing-zone-ip-plan.md) is the complete NSG catalog, each with
-  rationale and a full fix history so reviewers can see *why*, not just *what*.
+  rationale so reviewers can see *why*, not just *what*.
 - The [Network Design Guide](azure-landing-zone-network-design-guide.md) distils it
   into a route-intent model (Section 8) and NSG layering strategy (Section 9) plus "golden rules".
 

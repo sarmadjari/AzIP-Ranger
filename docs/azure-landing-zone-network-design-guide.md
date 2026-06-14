@@ -8,7 +8,7 @@
 ## 1. Purpose
 This guide provides a practical, implementation-ready blueprint for designing Azure Landing Zone networking effectively and efficiently. It aligns architecture choices, IP planning, route tables, and NSG controls so platform teams can scale without readdressing or routing rework.
 
-This guide is designed to complement detailed IP plans (such as the companion [IP Plan](azure-landing-zone-ip-plan.md), v5.2) by defining the core standard and operating model. The deep-dive on highly available NVAs lives in [Highly Available NVAs](highly-available-nvas.md).
+This guide is designed to complement detailed IP plans (such as the companion [IP Plan](azure-landing-zone-ip-plan.md)) by defining the core standard and operating model. The deep-dive on highly available NVAs lives in [Highly Available NVAs](highly-available-nvas.md).
 
 ## 2. Source Alignment (Microsoft Learn)
 This guide is aligned to the following Microsoft guidance:
@@ -135,10 +135,10 @@ Define routes by traffic class, not by ad-hoc prefixes:
   - One route PER SPOKE with the spoke VNet's exact prefix -> Hub inspection next hop
   - Only where explicitly required and validated; avoid unnecessary custom routes
 
-### 8.2.1 Route-specificity rule (v1.1: mandatory)
+### 8.2.1 Route-specificity rule (mandatory)
 Azure selects routes by longest-prefix-match across ALL route sources first; the User > BGP > System priority applies only between routes with the identical prefix. VNet peering injects one system route per remote VNet address-space prefix. Therefore a UDR that must override reachability to a peered VNet MUST use a prefix exactly equal to (or more specific than) the peered VNet's prefix, summary routes (e.g., a /14 covering all spokes, or a /16 covering a hub that declares /19s) silently lose and traffic bypasses inspection. Budget UDRs accordingly: 400 per route table by default, 1,000 with AVNM-managed route tables. Reference: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing
 
-### 8.2.2 NVA chaining rule (v1.1)
+### 8.2.2 NVA chaining rule
 Azure forwards on destination IP against the subnet's effective routes; guest-OS next hops toward another appliance in the same subnet are not honored. Chain multiple inline appliance groups only via (a) per-group subnets with per-subnet UDR cascades, (b) Gateway Load Balancer for public/North-South insertion, or (c) vendor overlay tunnels, never via same-subnet OS routing. Keep chains at 2-3 elements.
 
 ### 8.3 BGP Propagation Rules
@@ -179,7 +179,7 @@ Azure forwards on destination IP against the subnet's effective routes; guest-OS
 3. Standardize ILB/backend pool design for NVA HA and predictability.
 4. Validate that UDRs and peering flags support forwarded traffic behavior.
 
-### 10.2 HA pattern selection (v1.2)
+### 10.2 HA pattern selection
 Choose the inspection HA pattern before sizing load balancers, driven by two questions in order: **(1) do you need a third-party NVA at all**, then **(2) what traffic must it carry**. Do not start from "how many load balancers".
 
 **Decision zero, native vs third-party.** Azure Firewall provides native HA, autoscale, and symmetric inspection for **both** north-south and east-west with no load-balancer, SNAT, or symmetry plumbing to design. Select a third-party NVA only for a specific vendor mandate, existing licensing, or a capability the platform service does not provide (for example a particular IPS/TLS-inspection feature or an SD-WAN integration). This standard's reference implementation (IP Plan Sections 5-7) uses the Load Balancer pattern with a third-party NVA, a deliberate choice, not the only valid one.
@@ -191,7 +191,7 @@ Choose the inspection HA pattern before sizing load balancers, driven by two que
 3. Gateway Load Balancer is the preferred insertion for stateful **north-south** internet NVAs and does **not** carry east-west; use an internal ILB + HA Ports for east-west.
 4. Mind SNAT port exhaustion at scale; use an Azure NAT gateway for egress.
 
-### 10.3 Symmetry is an appliance-layer property (v1.2)
+### 10.3 Symmetry is an appliance-layer property
 The load-balancer count does not determine symmetry, the appliance does. A stateful third-party NVA must use exactly **one** symmetry mechanism per tier — **SNAT**, **active-passive**, or **active-active with vendor session-state sync** (mechanism trade-offs in [Highly Available NVAs](highly-available-nvas.md)). Two scope rules that are routinely overstated:
 - **HA Ports preserves symmetry only when both directions of a flow traverse the same internal load balancer** (the east-west force-tunnel pattern, IP Plan Section 6.7). It is **not** the symmetry mechanism for internet north-south, which spans a separate public LB and the internal ILB and therefore requires SNAT or Gateway Load Balancer.
 - **Each stateful tier in a chain solves symmetry independently.** An upstream tier (for example an SD-WAN or routing group) does not make a downstream firewall tier symmetric; every chained group must SNAT or keep both legs on its own ILB (IP Plan Sections 20.1, 20.3).
@@ -283,11 +283,3 @@ For most enterprises starting or standardizing landing zones:
 3. Keep design artifacts versioned and enforce them through policy plus IaC pipelines.
 
 This approach gives strong control now while preserving a clean path to global scale later.
-
-## 18. Change Log
-
-| Version | Date | Notes |
-|---|---|---|
-| 1.2 | 2026-06-14 | Added NVA HA pattern-selection and appliance-layer symmetry rules (Section 10) and golden rule 10 (Section 16). The four-pattern catalog, decision tree, and implementation checklist were moved to the companion [Highly Available NVAs](highly-available-nvas.md) deep-dive to remove duplication. |
-| 1.1 | 2026-06-12 | Added the route-specificity rule (Section 8.2.1) and the NVA chaining rule (Section 8.2.2). |
-| 1.0 | — | Initial release: topology decision standard, IP planning, route tables, NSGs, DNS, IPv6, validation runbook, and golden rules. |
