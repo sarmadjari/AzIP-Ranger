@@ -24,13 +24,13 @@
   var V = {
     app:         "2.8.0",  // AzIP-Ranger tool / engine release (matches ?v= in index.html)
     ipPlan:      "5.2",    // docs/azure-landing-zone-ip-plan.md
-    designGuide: "1.1",    // docs/azure-landing-zone-network-design-guide.md
+    designGuide: "1.2",    // docs/azure-landing-zone-network-design-guide.md
     repoUrl:     "https://github.com/sarmadjari/AzIP-Ranger",
     siteUrl:     "https://sarmadjari.github.io/AzIP-Ranger/",
   };
 
   /* derived, read-only convenience strings */
-  V.badge    = "v" + V.app + " · plan v" + V.ipPlan;
+  V.badge    = "v" + V.app;
   V.docBasis = "based on IP Plan v" + V.ipPlan +
                " + Network Design Guide v" + V.designGuide;
 

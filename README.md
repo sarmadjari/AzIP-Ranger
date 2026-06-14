@@ -36,12 +36,14 @@ AzIP-Ranger/
 │   ├── version.js    # SINGLE SOURCE OF TRUTH for versions (app, IP plan, guide, links)
 │   ├── app.js        # DOM event binding & UI state coordination
 │   ├── engine.js     # IP allocation, routing/NSG generation, rule verification
-│   ├── export.js     # Markdown / CSV / JSON serializers (shared by app, CLI & tests)
+│   ├── export.js     # Markdown / CSV / JSON serializers
 │   ├── cidr.js       # IPv4 CIDR math and subnet arithmetic
 │   └── config.js     # Default regions, environments, and dropdown values
 └── docs/
+    ├── why-azip-ranger.md                         # Plain-language value companion (start here)
     ├── azure-landing-zone-ip-plan.md              # Core architecture reference (v5.2)
-    └── azure-landing-zone-network-design-guide.md # Design principles & golden rules (v1.1)
+    ├── azure-landing-zone-network-design-guide.md # Design principles & golden rules (v1.2)
+    └── highly-available-nvas.md                   # HA NVA patterns & symmetry deep-dive (v1.0)
 ```
 
 ## 🛠️ Getting Started & Usage
@@ -49,26 +51,14 @@ AzIP-Ranger/
 ### Running Locally
 Since AzIP-Ranger is completely serverless and static, simply open `index.html` in any web browser to run the application.
 
-### Configuration
-You can customize standard regions, environments, spoke sizes, and VM counts by editing [js/config.js](js/config.js). The UI and calculation engines will automatically adapt to your changes.
 
-### Versioning (single source of truth)
-All versions live in one place — [js/version.js](js/version.js). Update `app`, `ipPlan`, or `designGuide` there and they propagate everywhere: the header badge, generated Markdown/CSV/JSON exports, in-app labels, engine warnings, and the repo/site links. Keep `ipPlan` in sync with [docs/azure-landing-zone-ip-plan.md](docs/azure-landing-zone-ip-plan.md) and `designGuide` with [docs/azure-landing-zone-network-design-guide.md](docs/azure-landing-zone-network-design-guide.md).
-
-The one thing the browser can't read at runtime is the `?v=` cache-busting query string on each `<script>`/`<link>` tag (it must fetch the file *before* it can read any value). A helper keeps those in sync with `app` instead of editing them by hand:
-
-```bash
-node tools/sync-version.js          # rewrite index.html ?v= tags to match js/version.js
-node tools/sync-version.js --check  # exit 1 if any tag is stale (CI / pre-commit)
-```
-
-> 💡 **Release flow:** bump the numbers in `js/version.js`, run `node tools/sync-version.js`, done — badge, exports, labels, links, and cache-busting strings all move together.
 
 ## 📖 Architecture Documentation
 For details on the specifications and constraints driving the engine:
 * [Why AzIP-Ranger](docs/why-azip-ranger.md), what the project is good at and what it helps with (start here)
 * [Azure Landing Zone IP Plan](docs/azure-landing-zone-ip-plan.md), Reference architecture (NVA arm concept in Section 6.1.1)
-* [Network Design Guide](docs/azure-landing-zone-network-design-guide.md), Landing zone connectivity guidelines.
+* [Network Design Guide](docs/azure-landing-zone-network-design-guide.md), Landing zone connectivity guidelines and golden rules.
+* [Highly Available NVAs](docs/highly-available-nvas.md), HA NVA patterns, traffic symmetry, and when to use Azure Firewall.
 
 ## ⚖️ License & Disclaimer
 

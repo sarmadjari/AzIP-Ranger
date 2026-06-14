@@ -5,15 +5,17 @@
    hops, route tables, NSGs, peering, DNS, capacity, with CAF
    naming built from <spoke>-<env>-<region>.
 
-   Encodes the rules of:
+   Encodes the rules of the source docs (their versions live in
+   js/version.js — ipPlan / designGuide — never hardcoded here):
    • "Azure Landing Zone – IP Addressing Scheme & Network Security
-     Design v5.0" (hub /19 sections, dual-tier NS/EW NVAs, ILB VIPs
+     Design" (hub /19 sections, dual-tier NS/EW NVAs, ILB VIPs
      .100, T-shirt spoke catalog with two-pointer allocation, UDR &
      NSG catalogs, BGP guardrails, capacity ceilings)
-   • "Azure Landing Zone Network Design Guide v1.0"
+   • "Azure Landing Zone Network Design Guide"
+     (NVA HA pattern selection / symmetry, see docs/highly-available-nvas.md)
 
    Inspection architectures:
-     dual, NS NVA tier + EW NVA tier (v5.0 reference)
+     dual, NS NVA tier + EW NVA tier (reference design)
               + optional Azure Firewall CHAINED into one tier
      single, one NVA tier inspects N-S and E-W
      mixed, NVA takes one tier, Azure Firewall takes the other
@@ -278,7 +280,7 @@
     const FW_INT = arch === "single" ? "Subnet-FW-Internal" : "Subnet-NS-Internal";
     const NS_PFX = arch === "single" ? "Subnet-FW" : "Subnet-NS";
 
-    /* v5.2 chain model (fabric-routed cascade):
+    /* chain model (fabric-routed cascade):
        Azure forwards by destination IP against the subnet's effective
        routes, a guest-OS next hop pointing at another VIP in the SAME
        subnet is not honored. Chained groups therefore each get their
@@ -319,7 +321,7 @@
     add("nvam",    "conn", "Subnet-NVA-Management",          24, "NVA management interfaces",   "RT-NVA-Mgmt", "NSG-NVA-Mgmt", { active: isNVA });
     add("pe",      "conn", "Subnet-PrivateEndpoints-Hub",    24, "Private Endpoints (hub)",     ", (PE return traffic bypasses UDRs)", "NSG-PrivateEndpoints", { active: svc.pe });
 
-    /* v5.2, chain-segment subnets (appended AFTER the v5.0 anchors so
+    /* chain-segment subnets (appended AFTER the base anchors so
        every existing CIDR is preserved; they only exist when a tier
        actually has ≥ 2 chained groups).                              */
     const nsIntName = (i) => `${NS_PFX}-Internal-${i}`;
@@ -427,19 +429,19 @@
     const ipAt = (key, off) => S[key] ? C.intToIp(S[key].base + off) : null;
     const azfwHop = azfwDeployed ? { ip: ipAt("azfw", 4), label: "Azure Firewall private IP", kind: "azfw" } : null;
 
-    /* a tier = ordered chain of NVA groups. v5.2: each CHAINED group
+    /* a tier = ordered chain of NVA groups: each CHAINED group
        i ≥ 2 lives in its own dedicated internal subnet, so per-subnet
        UDRs steer segment i → i+1 at the Azure fabric layer (Azure
        routes by destination IP via effective routes, a guest-OS next
-       hop pointing at a VIP in the same subnet is NOT honored, see
-       Section 20). Group 1 keeps the v5.0 anchors (Subnet-*-Internal, VIP
+       hop pointing at a VIP in the same subnet is NOT honored). Group
+       1 keeps the base anchors (Subnet-*-Internal, VIP
        .100). Standalone groups stay in group 1's subnet on the VIP
        ladder (.101+). Every group SNATs to the NIC it forwards from,
-       so each chain segment stays flow-symmetric (Section 6.7).             */
+       so each chain segment stays flow-symmetric.                       */
     function buildTier(key, label, ilbDocName, extKey, intKey, intName, tierCfg, purpose) {
       const ext = S[extKey], internal = S[intKey];
       if (!ext || !internal) return null;
-      /* per-subnet address law (v5.2 Section 20.2): statics .4–.99 (96 max),
+      /* per-subnet address law (see IP Plan): statics .4–.99 (96 max),
          VIP .100 (+ ladder .101+ for standalones in the base subnet),
          VMSS NICs dynamic from the remainder                          */
       const nicOff = {};                  // per-internal-subnet NIC cursor
@@ -634,7 +636,7 @@
           "The firewall SNATs to its private range so its segment's returns retrace it."));
     }
 
-    /* Section 20.3, Microsoft-aligned chain-depth guidance */
+    /* Microsoft-aligned chain-depth guidance (see HA NVA guide) */
     ["ns", "ew", "fw"].forEach(k => {
       const n = chainElems(k).length;
       if (n > 3) {
@@ -846,7 +848,7 @@
     plan.masterRows = masterRows;
 
     /* ════════ 9 · ROUTE TABLES ════════ */
-    /* v5.2 (F1), Azure picks routes by LONGEST PREFIX MATCH across all
+    /* Azure picks routes by LONGEST PREFIX MATCH across all
        sources first; "UDR beats system" applies only at IDENTICAL
        prefixes. Peering creates one system route per remote VNet
        prefix, so summary UDRs (To-Hub /16, To-Spokes /14) silently
@@ -1014,7 +1016,7 @@
           const nxt = ewElems[p + 1] || null;
           const isBase = g.chainIdx === 1;
           if (isBase) {
-            /* group 1's In subnet keeps the v5.0 anchor semantics:
+            /* group 1's In subnet keeps the base anchor semantics:
                deliveries/returns toward clients, BGP on for on-prem    */
             rts.push({ name: "RT-EW-Internal", appliesTo: "Subnet-EW-Internal", bgp: "Enabled", routes: [
               ...spokesPrefixes.map((p2, i) => route(spokesPrefixes.length > 1 ? `To-Spokes-${i + 1}` : "To-Spokes", p2, "Virtual Network", "-")),
@@ -1283,7 +1285,7 @@
     ];
     const spokeApp = [
       rule(100, "AllowFromWebTier", "Inbound", "ASG-WebServers", "ASG-AppServers", "8080,8443", "TCP", "Allow"),
-      /* v5.2: the former "AllowFromDataTier 1433 → app" rule was removed,
+      /* the former "AllowFromDataTier 1433 → app" rule was removed,
          NSGs are stateful (returns of app→data SQL sessions need no inbound
          rule) and no documented flow has the data tier initiating to the
          app tier on 1433. Dead rules widen the audit surface.            */
@@ -1367,7 +1369,7 @@
     else if (conn.expressRoute && erPrefixes > 800) info("ER advertisement approaching the limit, summarise with Advertised Gateway Prefixes",
       `${erPrefixes} prefixes (hub + 1 per spoke) advance toward the 1,000-prefix ER private-peering limit (Section 15.4). Set the VPN/ExpressRoute gateway's Advertised Gateway Prefixes (summarizedGatewayPrefixes) so it advertises a summary of the hub address space and covered spoke prefixes instead of every individual prefix, the sanctioned lever for staying under the limit without renumbering, especially where multiple hubs share the same ExpressRoute circuits (Section 2.1).`);
 
-    /* v5.2 (F1), per-spoke exact routes make UDRs-per-table a binding
+    /* per-spoke exact routes make UDRs-per-table a binding
        scale constraint alongside the 500-peering limit                 */
     const maxRoutes = rts.reduce((a, r) => Math.max(a, r.routes.length), 0);
     if (maxRoutes > 1000) err("Route-table limit exceeded",

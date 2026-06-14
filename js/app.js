@@ -551,7 +551,7 @@
       html += `<h3 style="margin-top:14px">Internal Load Balancer VIPs</h3>`;
       html += tbl(["ILB", "VIP", "Subnet", "Backend Pool", "Purpose"],
         plan.ilbs.map(l => `<tr><td>${esc(l.name)}</td><td class="mono">${l.vip}</td><td>${esc(l.subnet)}</td><td>${esc(l.pool)}</td><td class="muted">${esc(l.purpose)}</td></tr>`).join(""));
-      html += `<p class="hint" style="margin-top:6px">Standard SKU with <b>HA Ports</b> + Floating IP; configure each VIP as a loopback on every NVA. <a class="ref" href="${MS}azure/architecture/networking/guide/network-virtual-appliance-high-availability" target="_blank" rel="noopener noreferrer" title="HA NVAs behind Standard Load Balancer, Microsoft Learn">ⓘ</a> 5-tuple session persistence for stateful inspection.</p>`;
+      html += `<p class="hint" style="margin-top:6px">Standard SKU with <b>HA Ports</b> + Floating IP; configure each VIP as a loopback on every NVA. <a class="ref" href="${MS}azure/architecture/networking/guide/network-virtual-appliance-high-availability" target="_blank" rel="noopener noreferrer" title="HA NVAs behind Standard Load Balancer, Microsoft Learn">ⓘ</a> 5-tuple session persistence for stateful inspection. Choosing a pattern (HA Ports vs Gateway Load Balancer vs SNAT vs Azure Firewall)? See the <a class="ref" href="${V.repoUrl}/blob/main/docs/highly-available-nvas.md" target="_blank" rel="noopener noreferrer" title="Highly Available NVAs, pattern-selection deep-dive">HA NVA guide</a>.</p>`;
     }
 
     if (plan.nva && plan.nva.tiers.length) {

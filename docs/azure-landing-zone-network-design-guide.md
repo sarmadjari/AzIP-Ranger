@@ -1,16 +1,14 @@
-# Azure Landing Zone Network Design Guide v1.1
+# Azure Landing Zone Network Design Guide
 
 ## Document Control
-- Version: v1.1, adds the route-specificity rule (deep-scan fix F1) and chain-mechanism guidance (F2); see the IP Plan v5.2 Section 19.7 changelog
-- Status: Final Design Guide
-- Date: 2026-06-12
-- Audience: Cloud platform architects, network engineers, security architects
-- Scope: Azure Landing Zone networking design with focus on hub/spoke IP ranges, route tables, and NSGs
+- **Version:** 1.2
+- **Created:** 2025-07-04
+- **Last updated:** 2026-06-14
 
 ## 1. Purpose
 This guide provides a practical, implementation-ready blueprint for designing Azure Landing Zone networking effectively and efficiently. It aligns architecture choices, IP planning, route tables, and NSG controls so platform teams can scale without readdressing or routing rework.
 
-This guide is designed to complement detailed IP plans (such as your v4.x documents) by defining the core standard and operating model.
+This guide is designed to complement detailed IP plans (such as the companion [IP Plan](azure-landing-zone-ip-plan.md), v5.2) by defining the core standard and operating model. The deep-dive on highly available NVAs lives in [Highly Available NVAs](highly-available-nvas.md).
 
 ## 2. Source Alignment (Microsoft Learn)
 This guide is aligned to the following Microsoft guidance:
@@ -20,6 +18,8 @@ This guide is aligned to the following Microsoft guidance:
 - https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/define-an-azure-network-topology
 - https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/traditional-azure-networking-topology
 - https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/plan-for-ip-addressing
+- https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview#how-azure-selects-routes-for-traffic-routing
+- https://learn.microsoft.com/en-us/azure/architecture/networking/guide/network-virtual-appliance-high-availability
 
 ## 3. Design Principles Applied
 1. Subscription and network boundaries are intentional and policy-driven.
@@ -172,10 +172,29 @@ Azure forwards on destination IP against the subnet's effective routes; guest-OS
 - Online workloads: Public exposure only through approved ingress services, restricted reach-back to Corp.
 
 ## 10. Inspection and Symmetry Requirements
+
+### 10.1 Symmetry baseline
 1. Ensure flow symmetry for stateful inspection devices.
 2. Keep request and response traffic through the same security path where required by NVA design.
 3. Standardize ILB/backend pool design for NVA HA and predictability.
 4. Validate that UDRs and peering flags support forwarded traffic behavior.
+
+### 10.2 HA pattern selection (v1.2)
+Choose the inspection HA pattern before sizing load balancers, driven by two questions in order: **(1) do you need a third-party NVA at all**, then **(2) what traffic must it carry**. Do not start from "how many load balancers".
+
+**Decision zero, native vs third-party.** Azure Firewall provides native HA, autoscale, and symmetric inspection for **both** north-south and east-west with no load-balancer, SNAT, or symmetry plumbing to design. Select a third-party NVA only for a specific vendor mandate, existing licensing, or a capability the platform service does not provide (for example a particular IPS/TLS-inspection feature or an SD-WAN integration). This standard's reference implementation (IP Plan Sections 5-7) uses the Load Balancer pattern with a third-party NVA, a deliberate choice, not the only valid one.
+
+**One canonical catalog.** The four Microsoft-documented HA patterns, the scenario-to-pattern table, the decision tree, per-pattern detail, and the implementation checklist live in the companion deep-dive **[Highly Available NVAs](highly-available-nvas.md)** — treat that file as the single source of truth and do not restate it here. This section states only the standard-level rules a compliant design must satisfy:
+
+1. Decide native-vs-third-party **before** sizing any load balancer.
+2. A stateful third-party NVA must solve flow symmetry at the appliance (see 10.3); load-balancer count alone does not.
+3. Gateway Load Balancer is the preferred insertion for stateful **north-south** internet NVAs and does **not** carry east-west; use an internal ILB + HA Ports for east-west.
+4. Mind SNAT port exhaustion at scale; use an Azure NAT gateway for egress.
+
+### 10.3 Symmetry is an appliance-layer property (v1.2)
+The load-balancer count does not determine symmetry, the appliance does. A stateful third-party NVA must use exactly **one** symmetry mechanism per tier — **SNAT**, **active-passive**, or **active-active with vendor session-state sync** (mechanism trade-offs in [Highly Available NVAs](highly-available-nvas.md)). Two scope rules that are routinely overstated:
+- **HA Ports preserves symmetry only when both directions of a flow traverse the same internal load balancer** (the east-west force-tunnel pattern, IP Plan Section 6.7). It is **not** the symmetry mechanism for internet north-south, which spans a separate public LB and the internal ILB and therefore requires SNAT or Gateway Load Balancer.
+- **Each stateful tier in a chain solves symmetry independently.** An upstream tier (for example an SD-WAN or routing group) does not make a downstream firewall tier symmetric; every chained group must SNAT or keep both legs on its own ILB (IP Plan Sections 20.1, 20.3).
 
 ## 11. DNS and Private Endpoint Considerations
 1. Use Azure Private DNS and Private Resolver with dedicated delegated subnets where applicable.
@@ -255,6 +274,7 @@ Validate these limits during design and quarterly review:
 7. Always validate effective routes and NSG behavior after every network change.
 8. Never expect a summary UDR to override a more-specific peering system route, steering routes must match the peered VNet prefix exactly (see 8.2.1).
 9. Never design NVA-to-NVA forwarding inside one subnet, Azure routes by destination via effective routes only (see 8.2.2).
+10. Always start NVA HA design with the native-vs-third-party decision; if you deploy a stateful third-party NVA, solve symmetry at the appliance (SNAT, active-passive, or session sync) and never assume HA Ports alone guarantees symmetry for internet north-south (see 10.2, 10.3).
 
 ## 17. Final Recommendation
 For most enterprises starting or standardizing landing zones:
@@ -263,3 +283,11 @@ For most enterprises starting or standardizing landing zones:
 3. Keep design artifacts versioned and enforce them through policy plus IaC pipelines.
 
 This approach gives strong control now while preserving a clean path to global scale later.
+
+## 18. Change Log
+
+| Version | Date | Notes |
+|---|---|---|
+| 1.2 | 2026-06-14 | Added NVA HA pattern-selection and appliance-layer symmetry rules (Section 10) and golden rule 10 (Section 16). The four-pattern catalog, decision tree, and implementation checklist were moved to the companion [Highly Available NVAs](highly-available-nvas.md) deep-dive to remove duplication. |
+| 1.1 | 2026-06-12 | Added the route-specificity rule (Section 8.2.1) and the NVA chaining rule (Section 8.2.2). |
+| 1.0 | — | Initial release: topology decision standard, IP planning, route tables, NSGs, DNS, IPv6, validation runbook, and golden rules. |

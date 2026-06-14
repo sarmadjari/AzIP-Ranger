@@ -93,6 +93,10 @@ three subnets?"* The concept is now documented end-to-end in
 The app surfaces all three structurally too: the **NVA inventory** lists each
 instance's External NIC, Internal NIC, **Mgmt NIC**, and Loopback VIP.
 
+For the high-availability and traffic-symmetry patterns behind these arms, HA
+Ports, Gateway Load Balancer, SNAT, and when a native Azure Firewall is the
+better choice, see the [Highly Available NVAs](highly-available-nvas.md) deep-dive.
+
 ## 5. Why you can trust the output
 
 - **Verified against live Microsoft Learn**, not memory, route-selection/LPM, the

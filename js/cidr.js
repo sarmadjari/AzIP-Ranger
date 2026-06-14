@@ -91,7 +91,7 @@
     { base: ipToInt("192.168.0.0"), prefix: 16 },
   ];
 
-  /** Ranges that must never appear in a private design (Section 2.2 / guide Section 6.2). */
+  /** Ranges that must never appear in a private design (see IP Plan / Design Guide). */
   const FORBIDDEN = [
     { base: ipToInt("224.0.0.0"), prefix: 4, why: "multicast (224.0.0.0/4)" },
     { base: ipToInt("255.255.255.255"), prefix: 32, why: "broadcast (255.255.255.255/32)" },
